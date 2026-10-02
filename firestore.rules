@@ -1,0 +1,62 @@
+rules_version = '2';
+
+// HomeCal – Firestore security rules
+// Data model:
+//   users/{uid}                          -> private user doc (householdId)
+//   households/{hid}                     -> household (memberUids, settings)
+//   households/{hid}/{collection}/{doc}  -> profiles, events, places, reminders, assistantHistory, integrations
+//   invites/{code}                       -> invite code -> householdId (get only, never list)
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function household(hid) {
+      return get(/databases/$(database)/documents/households/$(hid));
+    }
+
+    function isMember(hid) {
+      return signedIn() && request.auth.uid in household(hid).data.memberUids;
+    }
+
+    match /users/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
+    match /households/{hid} {
+      allow read: if signedIn() && request.auth.uid in resource.data.memberUids;
+
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.memberUids == [request.auth.uid];
+
+      // Members can edit the household, but cannot remove the owner.
+      allow update: if signedIn()
+        && request.auth.uid in resource.data.memberUids
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && resource.data.ownerUid in request.resource.data.memberUids;
+
+      // Joining with an invite code: only add yourself.
+      allow update: if signedIn()
+        && !(request.auth.uid in resource.data.memberUids)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberUids', 'lastInvite'])
+        && request.resource.data.memberUids == resource.data.memberUids.concat([request.auth.uid])
+        && get(/databases/$(database)/documents/invites/$(request.resource.data.lastInvite)).data.householdId == hid;
+
+      allow delete: if signedIn() && request.auth.uid == resource.data.ownerUid;
+
+      match /{collection}/{docId} {
+        allow read, write: if isMember(hid);
+      }
+    }
+
+    match /invites/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if isMember(request.resource.data.householdId);
+      allow delete: if isMember(resource.data.householdId);
+    }
+  }
+}
