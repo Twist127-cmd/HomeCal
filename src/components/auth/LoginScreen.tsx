@@ -8,6 +8,7 @@ import {
   signInWithPopup,
   updateProfile,
 } from "firebase/auth";
+import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 import { auth } from "@/lib/firebase/client";
 import { Button, Field, inputClass, Spinner } from "@/components/ui/primitives";
@@ -24,11 +25,58 @@ const ERRORS: Record<string, string> = {
   "auth/network-request-failed": "Pas de connexion réseau.",
 };
 
+function PasswordInput({
+  value,
+  onChange,
+  visible,
+  onToggle,
+  autoComplete,
+  invalid,
+}: {
+  value: string;
+  onChange(v: string): void;
+  visible: boolean;
+  onToggle(): void;
+  autoComplete: string;
+  invalid?: boolean;
+}) {
+  return (
+    <div className="relative">
+      <input
+        className={`${inputClass} pr-12 ${invalid ? "border-danger focus:border-danger" : ""}`}
+        type={visible ? "text" : "password"}
+        required
+        minLength={6}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        autoComplete={autoComplete}
+        autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
+      />
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          onToggle();
+        }}
+        className="absolute top-1/2 right-2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-muted hover:bg-surface-3 hover:text-text"
+        aria-label={visible ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+        title={visible ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+      >
+        {visible ? <EyeOff size={18} /> : <Eye size={18} />}
+      </button>
+    </div>
+  );
+}
+
 export function LoginScreen() {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -52,6 +100,7 @@ export function LoginScreen() {
     run(async () => {
       if (mode === "signin") await signInWithEmailAndPassword(auth(), email.trim(), password);
       else {
+        if (password !== confirm) throw new Error("Les mots de passe ne correspondent pas.");
         const cred = await createUserWithEmailAndPassword(auth(), email.trim(), password);
         if (name.trim()) await updateProfile(cred.user, { displayName: name.trim() });
       }
@@ -92,19 +141,34 @@ export function LoginScreen() {
               <input className={inputClass} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
             </Field>
             <Field label="Mot de passe">
-              <input
-                className={inputClass}
-                type="password"
-                required
-                minLength={6}
+              <PasswordInput
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={setPassword}
+                visible={showPassword}
+                onToggle={() => setShowPassword((v) => !v)}
                 autoComplete={mode === "signin" ? "current-password" : "new-password"}
               />
             </Field>
+            {mode === "signup" && (
+              <Field label="Confirmer le mot de passe">
+                <PasswordInput
+                  value={confirm}
+                  onChange={setConfirm}
+                  visible={showPassword}
+                  onToggle={() => setShowPassword((v) => !v)}
+                  autoComplete="new-password"
+                  invalid={confirm.length > 0 && confirm !== password}
+                />
+                {confirm.length > 0 && (
+                  <span className={`mt-1 block text-xs ${confirm === password ? "text-ok" : "text-danger"}`}>
+                    {confirm === password ? "✓ Les mots de passe correspondent" : "Les mots de passe ne correspondent pas"}
+                  </span>
+                )}
+              </Field>
+            )}
             {error && <p className="rounded-xl bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
             {info && <p className="rounded-xl bg-ok/10 px-3 py-2 text-sm text-ok">{info}</p>}
-            <Button type="submit" variant="primary" size="lg" className="w-full" disabled={busy}>
+            <Button type="submit" variant="primary" size="lg" className="w-full" disabled={busy || (mode === "signup" && confirm !== password)}>
               {busy && <Spinner />}
               {mode === "signin" ? "Se connecter" : "Créer mon compte"}
             </Button>
