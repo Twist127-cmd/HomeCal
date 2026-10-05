@@ -202,8 +202,10 @@ export function LoginScreen() {
               onClick={() =>
                 run(async () => {
                   if (!email.trim()) throw new Error("Saisissez votre e-mail ci-dessus.");
-                  await sendPasswordResetEmail(auth(), email.trim());
-                  setInfo("E-mail de réinitialisation envoyé.");
+                  const a = auth();
+                  a.languageCode = "fr"; // e-mail and reset page in French
+                  await sendPasswordResetEmail(a, email.trim());
+                  setInfo("Si un compte existe pour cette adresse, un e-mail de réinitialisation vient d'être envoyé. Pensez à vérifier vos spams.");
                 })
               }
             >
