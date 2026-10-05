@@ -8,7 +8,7 @@ import { NextResponse, type NextRequest } from "next/server";
 export const maxDuration = 120;
 
 export async function POST(req: NextRequest) {
-  const base = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
+  const base = (process.env.OLLAMA_BASE_URL || "http://localhost:11434").replace(/^\uFEFF/, "").trim();
   let body: Record<string, unknown>;
   try {
     body = await req.json();

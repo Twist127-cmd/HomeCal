@@ -2,7 +2,9 @@ import type { GeocodeResult } from "./GeocodingProvider";
 
 /** Server-side geocoders (used by /api/geocode). Free OSM-based services. */
 
-const UA = () => process.env.GEOCODING_USER_AGENT || "HomeCal/1.0";
+/** HTTP header values must be Latin-1: drop BOM / non-ASCII characters. */
+export const userAgent = () => (process.env.GEOCODING_USER_AGENT || "HomeCal/1.0").replace(/[^\x20-\x7E]/g, "").trim() || "HomeCal/1.0";
+const UA = userAgent;
 
 interface PhotonFeature {
   geometry: { coordinates: [number, number] };

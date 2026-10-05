@@ -19,6 +19,7 @@ import { WebSpeechProvider } from "@/providers/speech/SpeechProvider";
 import { WebSpeechTTSProvider } from "@/providers/tts/TTSProvider";
 import { OpenMeteoProvider } from "@/providers/weather/OpenMeteoProvider";
 import type { ToolContext } from "@/assistant/executor";
+import { toast } from "@/components/ui/toast";
 
 // Singletons (stateless or caching providers)
 const weather = new OpenMeteoProvider();
@@ -125,10 +126,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => unsubs.forEach((u) => u());
   }, [householdId]);
 
-  const calendar = useMemo(
-    () => (householdId && user ? createCalendarProviders(firestore(), householdId, user.uid).local : null),
-    [householdId, user],
-  );
+  const calendar = useMemo(() => {
+    if (!householdId || !user) return null;
+    const local = createCalendarProviders(firestore(), householdId, user.uid).local;
+    local.onWriteError = (e) => toast({ text: `Enregistrement refusé : ${e.message}`, tone: "error" });
+    return local;
+  }, [householdId, user]);
 
   const llmSettings = household?.settings.llm;
   const llm = useMemo(() => (llmSettings ? createLLMProvider(llmSettings) : null), [llmSettings]);

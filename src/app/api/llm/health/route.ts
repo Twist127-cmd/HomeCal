@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const base = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
+  const base = (process.env.OLLAMA_BASE_URL || "http://localhost:11434").replace(/^\uFEFF/, "").trim();
   try {
     const res = await fetch(`${base}/api/tags`, { signal: AbortSignal.timeout(3000), cache: "no-store" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);

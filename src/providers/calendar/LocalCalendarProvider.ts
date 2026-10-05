@@ -13,10 +13,17 @@ import type { CalendarEvent, NewEvent } from "@/lib/types";
 import { ProviderError, type ProviderStatus } from "../errors";
 import type { CalendarProvider, ExternalCalendar, SyncResult } from "./CalendarProvider";
 
-/** Native HomeCal calendar stored in Firestore: households/{hid}/events/{id}. Source of truth in V1. */
+/**
+ * Native HomeCal calendar stored in Firestore: households/{hid}/events/{id}. Source of truth in V1.
+ *
+ * Writes are applied to the local cache immediately (latency compensation) and are NOT awaited
+ * until the server acknowledges them: offline, the server ack never comes and the UI would hang.
+ * Server-side failures (e.g. security rules) are reported through `onWriteError`.
+ */
 export class LocalCalendarProvider implements CalendarProvider {
   readonly id = "local" as const;
   readonly label = "HomeCal";
+  onWriteError?: (e: Error) => void;
 
   constructor(
     private readonly db: Firestore,
@@ -26,6 +33,13 @@ export class LocalCalendarProvider implements CalendarProvider {
 
   private col() {
     return collection(this.db, "households", this.householdId, "events");
+  }
+
+  private write(p: Promise<unknown>) {
+    p.catch((e: Error) => {
+      if (this.onWriteError) this.onWriteError(e);
+      else console.error("[HomeCal] write failed", e);
+    });
   }
 
   status(): ProviderStatus {
@@ -51,7 +65,7 @@ export class LocalCalendarProvider implements CalendarProvider {
     const ref = doc(this.col());
     const now = new Date().toISOString();
     const full: CalendarEvent = { ...event, id: ref.id, createdBy: event.createdBy ?? this.uid, createdAt: now, updatedAt: now };
-    await setDoc(ref, stripUndefined(full));
+    this.write(setDoc(ref, stripUndefined(full)));
     return full;
   }
 
@@ -60,21 +74,21 @@ export class LocalCalendarProvider implements CalendarProvider {
     const snap = await getDoc(ref);
     if (!snap.exists()) throw new ProviderError("BAD_REQUEST", `Événement introuvable : ${id}`);
     const updated = { ...(snap.data() as CalendarEvent), ...patch, id, updatedAt: new Date().toISOString() };
-    await updateDoc(ref, stripUndefined({ ...patch, updatedAt: updated.updatedAt }));
+    this.write(updateDoc(ref, stripUndefined({ ...patch, updatedAt: updated.updatedAt })));
     return updated;
   }
 
   /** Restore an event with a known id (undo of a delete). */
   async restoreEvent(event: CalendarEvent): Promise<void> {
-    await setDoc(doc(this.col(), event.id), stripUndefined({ ...event, updatedAt: new Date().toISOString() }));
+    this.write(setDoc(doc(this.col(), event.id), stripUndefined({ ...event, updatedAt: new Date().toISOString() })));
   }
 
   async replaceEvent(event: CalendarEvent): Promise<void> {
-    await setDoc(doc(this.col(), event.id), stripUndefined({ ...event, updatedAt: new Date().toISOString() }));
+    this.write(setDoc(doc(this.col(), event.id), stripUndefined({ ...event, updatedAt: new Date().toISOString() })));
   }
 
   async deleteEvent(id: string): Promise<void> {
-    await deleteDoc(doc(this.col(), id));
+    this.write(deleteDoc(doc(this.col(), id)));
   }
 
   async syncEvents(): Promise<SyncResult> {

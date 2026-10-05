@@ -110,7 +110,7 @@ export function HomeScreen() {
             <span className="text-lg leading-none">{curW.emoji}</span>
             <span className="tabular font-semibold">{Math.round(cur.temperature)}°</span>
             {forecast?.daily[0] && (
-              <span className="hidden text-muted sm:inline">
+              <span className="hidden text-muted xl:inline">
                 {Math.round(forecast.daily[0].tMin)}°/{Math.round(forecast.daily[0].tMax)}°
               </span>
             )}
@@ -134,7 +134,7 @@ export function HomeScreen() {
               <ChevronRight size={22} />
             </Button>
           </div>
-          <span className="min-w-0 flex-1 truncate text-sm font-semibold md:w-52 md:flex-none">{title}</span>
+          <span className="min-w-0 flex-1 truncate text-sm font-semibold md:w-40 md:flex-none xl:w-48">{title}</span>
           <div className="flex rounded-full bg-surface-2 p-1">
             {VIEWS.map((v) => (
               <button

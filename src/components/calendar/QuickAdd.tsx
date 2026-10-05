@@ -62,9 +62,9 @@ export function QuickAdd({
     }
     const draft = toDraft()!;
     if (!calendar) return;
+    setText("");
     try {
       const created = await calendar.createEvent({ ...(draft as NewEvent), createdBy: user?.uid });
-      setText("");
       toast({
         text: `« ${created.title} » ajouté ${fmtRelativeDay(parsed!.start, now).toLowerCase()}${parsed!.allDay ? "" : ` à ${fmtTime(parsed!.start)}`}`,
         tone: "success",

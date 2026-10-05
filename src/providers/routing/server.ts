@@ -1,4 +1,5 @@
 import type { GeoPoint, TravelMode } from "@/lib/types";
+import { userAgent } from "../geocoding/server";
 import type { Route } from "./RoutingProvider";
 
 const PROFILE: Record<TravelMode, { base: string; profile: string }> = {
@@ -15,7 +16,7 @@ interface OsrmResponse {
 async function osrm(base: string, profile: string, from: GeoPoint, to: GeoPoint): Promise<{ duration: number; distance: number }> {
   const url = `${base}/route/v1/${profile}/${from.lng},${from.lat};${to.lng},${to.lat}?overview=false&alternatives=false`;
   const res = await fetch(url, {
-    headers: { "User-Agent": process.env.GEOCODING_USER_AGENT || "HomeCal/1.0" },
+    headers: { "User-Agent": userAgent() },
     signal: AbortSignal.timeout(8000),
   });
   if (!res.ok) throw new Error(`OSRM HTTP ${res.status}`);
