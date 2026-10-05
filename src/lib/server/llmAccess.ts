@@ -1,12 +1,11 @@
 import "server-only";
-import { getApps, initializeApp, type App } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
+import { createRemoteJWKSet, jwtVerify } from "jose";
 
 /**
  * Access control for the LLM proxy when it forwards to the remote Ollama tunnel.
  *
  *  1. The browser sends its Firebase ID token (Authorization: Bearer …).
- *  2. We verify the token signature (firebase-admin, no service account needed).
+ *  2. We verify the token signature against Google's public keys (no service account needed).
  *  3. The user must be allowed: e-mail in HOMECAL_ALLOWED_EMAILS, or member of a household
  *     listed in HOMECAL_ALLOWED_HOUSEHOLDS (read from Firestore with the user's own token,
  *     so the security rules apply). When neither list is set, any signed-in user who
@@ -36,8 +35,19 @@ function projectId() {
   return clean(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID) || clean(process.env.FIREBASE_ADMIN_PROJECT_ID);
 }
 
-function verifierApp(): App {
-  return getApps().find((a) => a.name === "homecal-verify") ?? initializeApp({ projectId: projectId() }, "homecal-verify");
+// Google's public keys for Firebase ID tokens (cached by jose)
+const JWKS = createRemoteJWKSet(new URL("https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com"));
+
+/** Verify a Firebase ID token (signature, issuer, audience, expiry) — see Firebase "verify ID tokens using a third-party JWT library". */
+async function verifyIdToken(idToken: string): Promise<{ uid: string; email?: string }> {
+  const pid = projectId();
+  const { payload } = await jwtVerify(idToken, JWKS, {
+    issuer: `https://securetoken.google.com/${pid}`,
+    audience: pid,
+    algorithms: ["RS256"],
+  });
+  if (!payload.sub) throw new Error("no subject");
+  return { uid: payload.sub, email: typeof payload.email === "string" ? payload.email : undefined };
 }
 
 async function householdOf(uid: string, idToken: string): Promise<string | null> {
@@ -62,7 +72,7 @@ export async function assertLLMAccess(authorization: string | null): Promise<voi
   if (!idToken) throw new AccessError(401, "Connexion requise");
   let decoded;
   try {
-    decoded = await getAuth(verifierApp()).verifyIdToken(idToken);
+    decoded = await verifyIdToken(idToken);
   } catch {
     throw new AccessError(401, "Session invalide, reconnectez-vous");
   }
