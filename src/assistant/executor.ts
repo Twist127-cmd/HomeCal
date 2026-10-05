@@ -510,7 +510,11 @@ export class ToolExecutor {
       loc = e.location;
       at = { date: new Date(e.start), dateOnly: e.allDay };
     }
-    if (!loc && str(a.location)) loc = await this.resolveLocation(a.location);
+    if (!loc && str(a.location)) {
+      loc = await this.resolveLocation(a.location);
+      // never answer with the home weather when the user asked for another place
+      if (!hasCoords(loc)) throw new ToolError(`Lieu introuvable pour la météo : ${a.location}`);
+    }
     if (!hasCoords(loc)) {
       const h = this.home();
       if (!h) throw new ToolError("Aucun lieu « Maison » configuré pour la météo");

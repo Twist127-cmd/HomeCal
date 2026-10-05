@@ -228,7 +228,7 @@ export function parseQuickAdd(input: string, opts: QuickAddOptions = {}): QuickA
       }
     }
   }
-  if (!startTime && (m = mk.match(/\b(?:a\s+)?midi\b/))) {
+  if (!startTime && (m = mk.match(/(?<!apres[- ])\b(?:a\s+)?midi\b/))) {
     startTime = { h: 12, m: 0 };
     mk.consume(m);
   }

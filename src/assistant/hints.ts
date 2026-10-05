@@ -84,6 +84,55 @@ export function detectIntent(input: string): Intent {
   return "query";
 }
 
+// ------------------------------------------------------------------ weather
+
+const WEATHER_RE =
+  /\b(meteo|quel temps|temps fera|temps fait|temps qu'il|pleuvoir|pleut|pleuvra|pluie|parapluie|neiger|neige|neigera|temperature|degres|(?:fera|fait)(?:[- ]t)?(?:[- ]il)? (?:chaud|froid|beau|moche)|soleil|orage|vent)\b/;
+
+const NOT_PLACE = new Set([
+  "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche", "demain", "aujourd'hui",
+  "janvier", "fevrier", "mars", "avril", "mai", "juin", "juillet", "aout", "septembre", "octobre", "novembre", "decembre",
+  "midi", "minuit", "la maison", "maison", "moi", "nous",
+]);
+
+export interface WeatherQuestion {
+  /** Place as written by the user (city, address or favourite place); undefined = home */
+  location?: string;
+  /** Point in time asked for */
+  at: Date;
+  /** Only a day was given → daily summary */
+  dateOnly: boolean;
+}
+
+/** Detect "Quel temps fera-t-il à Genève demain ?" and extract place + date deterministically. */
+export function parseWeatherQuestion(input: string, now: Date, places: { name: string }[] = []): WeatherQuestion | null {
+  const n = normalize(input);
+  if (!WEATHER_RE.test(n)) return null;
+  if (detectIntent(input) !== "query") return null;
+
+  // favourite place mentioned ("au crossfit", "chez les parents")
+  let location = places
+    .filter((p) => !/^(maison|domicile|home)$/i.test(p.name))
+    .sort((a, b) => b.name.length - a.name.length)
+    .find((p) => new RegExp(String.raw`\b${normalize(p.name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\b`).test(n))?.name;
+
+  if (!location) {
+    // "à Genève", "sur Lausanne", "pour Saint-Maurice", "en Valais", "au Mont-Pèlerin"
+    const m = /(?:^|\s)(?:à|a|au|aux|sur|pour|en|vers|dans)\s+((?:[A-ZÀÂÄÉÈÊËÎÏÔÖÛÜÇ][\p{L}'’-]*)(?:[\s-](?:(?:de|du|des|la|le|les|sur|en|d'|l')\s?)?[A-ZÀÂÄÉÈÊËÎÏÔÖÛÜÇ][\p{L}'’-]*)*)/u.exec(input);
+    if (m && !NOT_PLACE.has(normalize(m[1]))) location = m[1].trim();
+  }
+
+  const r = parseQuickAdd(input, { now });
+  let at: Date;
+  let dateOnly = false;
+  if (r.hasExplicitTime) at = r.start;
+  else if (r.hasExplicitDate) {
+    at = r.start;
+    dateOnly = true;
+  } else at = now;
+  return { location, at, dateOnly };
+}
+
 const CREATE_PREFIX = /^\s*(?:(?:est-ce que tu peux|tu peux|peux-tu|pourrais-tu|merci de)\s+)?(?:ajoute[rz]?|rajoute[rz]?|cree[rz]?|crée[rz]?|planifie[rz]?|programme[rz]?|note[rz]?|réserve[rz]?|reserve[rz]?|mets|mettre|inscris)\s+(?:moi\s+|nous\s+)?(?:un |une |le |la |l'|du |des )?(?:(?:rendez-vous|rdv|événement|evenement)\s+(?:chez le |chez la |chez |au |à la |a la |pour |de |du )?)?/i;
 
 /**

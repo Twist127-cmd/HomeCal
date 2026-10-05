@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { runAgent } from "@/assistant/agent";
+import { handleUtterance, isQuestion, runAgent } from "@/assistant/agent";
 import { parseDateArg, ToolExecutor, type ToolContext } from "@/assistant/executor";
 import { DEFAULT_SETTINGS, type Reminder } from "@/lib/types";
 import { MemoryCalendarProvider } from "@/providers/calendar/MemoryCalendarProvider";
@@ -191,6 +191,80 @@ describe("ToolExecutor", () => {
 
   it("unknown tool", async () => {
     expect((await ex.run("hack", {})).ok).toBe(false);
+  });
+});
+
+describe("handleUtterance – fast paths", () => {
+  function setup() {
+    const cal = new MemoryCalendarProvider();
+    const ctx = context(cal);
+    const calls: { location?: unknown }[] = [];
+    ctx.weather = {
+      ...weather,
+      getForecast: async (lat, lng) => {
+        calls.push({ location: `${lat},${lng}` });
+        return weather.getForecast(lat, lng);
+      },
+    };
+    const base = {
+      history: [],
+      systemPrompt: "sys",
+      llm: null,
+      executor: new ToolExecutor(ctx),
+      now,
+      profiles,
+      places,
+      currentProfileId: "clement",
+    };
+    return { cal, base, calls };
+  }
+
+  it("weather for another city uses that city, not home", async () => {
+    const { base, calls } = setup();
+    const r = await handleUtterance({ ...base, input: "Quel temps fera-t-il à Genève demain ?" });
+    expect(r.fast).toBe(true);
+    expect(r.actions[0].args).toMatchObject({ location: "Genève", date: "2026-10-01" });
+    expect(calls[0].location).toBe("46.6,6.7"); // fake geocoder result, not home (46.5197,6.6323)
+    expect(r.text).toContain("Genève");
+  });
+
+  it("weather without place = home", async () => {
+    const { base } = setup();
+    const r = await handleUtterance({ ...base, input: "Est-ce qu'il va pleuvoir demain ?" });
+    expect(r.actions[0].args.location).toBeUndefined();
+    expect(r.text).toContain("Maison");
+  });
+
+  it("asks for the time when missing, then creates the event with the answer", async () => {
+    const { cal, base } = setup();
+    const q = await handleUtterance({ ...base, input: "Ajoute dentiste jeudi" });
+    expect(isQuestion(q.text)).toBe(true);
+    expect(q.pending?.kind).toBe("time");
+    expect(cal.events).toHaveLength(0);
+
+    const r = await handleUtterance({ ...base, input: "à 16h30", pending: q.pending });
+    expect(r.changed).toBe(true);
+    expect(new Date(cal.events[0].start)).toEqual(d(2026, 10, 1, 16, 30));
+    expect(cal.events[0].title).toBe("Dentiste");
+  });
+
+  it("answer 'toute la journée' creates an all-day event; 'non' cancels", async () => {
+    const { cal, base } = setup();
+    const q = await handleUtterance({ ...base, input: "Ajoute anniversaire maman samedi" });
+    await handleUtterance({ ...base, input: "toute la journée", pending: q.pending });
+    expect(cal.events[0].allDay).toBe(true);
+
+    const q2 = await handleUtterance({ ...base, input: "Ajoute coiffeur vendredi" });
+    const r = await handleUtterance({ ...base, input: "non laisse tomber", pending: q2.pending });
+    expect(r.changed).toBe(false);
+    expect(cal.events).toHaveLength(1);
+  });
+
+  it("explicit all-day request does not ask", async () => {
+    const { cal, base } = setup();
+    const r = await handleUtterance({ ...base, input: "Ajoute vacances samedi toute la journée" });
+    expect(r.changed).toBe(true);
+    expect(cal.events[0].allDay).toBe(true);
   });
 });
 

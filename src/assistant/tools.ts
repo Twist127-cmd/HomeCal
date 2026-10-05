@@ -103,8 +103,12 @@ export const TOOLS: ToolDefinition[] = [
   ),
   tool(
     "getWeather",
-    "Météo prévue (température, pluie, vent) pour une date/heure et un lieu (défaut : maison).",
-    { date: dateTime, location: { type: "string" }, eventId: { type: "string", description: "Météo au lieu et à l'heure d'un événement" } },
+    "Météo prévue (température, pluie, vent) pour une date/heure et un lieu. Sans lieu = maison.",
+    {
+      date: dateTime,
+      location: { type: "string", description: "Ville ou adresse citée par l'utilisateur (ex. Genève). Obligatoire si un lieu est mentionné." },
+      eventId: { type: "string", description: "Météo au lieu et à l'heure d'un événement" },
+    },
   ),
   tool(
     "calculateRoute",

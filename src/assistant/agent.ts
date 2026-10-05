@@ -1,8 +1,10 @@
 import type { ChatMessage, LLMProvider } from "@/providers/llm";
 import { localIso, type ToolExecutor, type ToolResult } from "./executor";
-import { dateHints, detectIntent, quickCreateFromCommand, type Intent } from "./hints";
+import { dateHints, detectIntent, parseWeatherQuestion, quickCreateFromCommand, type Intent, type WeatherQuestion } from "./hints";
 import { TOOLS } from "./tools";
 import { fmtRelativeDay, fmtTime } from "@/lib/dates";
+import { normalize } from "@/lib/profiles";
+import { parseQuickAdd, type QuickAddResult } from "@/lib/quickadd";
 import type { FavoritePlace, Profile } from "@/lib/types";
 
 export interface AgentAction {
@@ -17,6 +19,8 @@ export interface AgentResult {
   changed: boolean;
   /** true when handled by the deterministic fast path (no LLM) */
   fast?: boolean;
+  /** set when the assistant asked a question it will resolve itself on the next turn */
+  pending?: PendingQuestion;
 }
 
 export interface AgentHistoryItem {
@@ -107,7 +111,13 @@ export async function runAgent(opts: {
  * Entry point used by the UI: deterministic fast path for simple "Ajoute …" commands,
  * LLM agent for everything else.
  */
-export async function handleUtterance(opts: {
+/** A question the assistant asked and whose answer it is waiting for. */
+export interface PendingQuestion {
+  kind: "time";
+  draft: QuickAddResult;
+}
+
+export interface UtteranceOptions {
   input: string;
   history: AgentHistoryItem[];
   systemPrompt: string;
@@ -117,49 +127,132 @@ export async function handleUtterance(opts: {
   profiles: Profile[];
   places: FavoritePlace[];
   currentProfileId?: string;
+  /** Question asked in the previous turn (e.g. "À quelle heure ?") */
+  pending?: PendingQuestion | null;
   signal?: AbortSignal;
   onStep?(label: string): void;
-}): Promise<AgentResult> {
-  const quick = quickCreateFromCommand(opts.input, {
-    now: opts.now,
-    profiles: opts.profiles,
-    places: opts.places,
-    currentProfileId: opts.currentProfileId,
-  });
-  if (quick || !opts.llm) {
-    if (!quick) {
+}
+
+const ALL_DAY_RE = /\b(toute la journee|journee entiere|journee complete|toute la jour|pas d'heure|sans heure|la journee)\b/;
+const CANCEL_RE = /^(non|annule|annuler|laisse tomber|oublie|stop|rien|pas maintenant)\b/;
+
+/** true when the assistant's answer is a question → the UI re-opens the microphone. */
+export function isQuestion(text: string): boolean {
+  return /\?\s*$/.test(text.trim());
+}
+
+export async function handleUtterance(opts: UtteranceOptions): Promise<AgentResult> {
+  const qaOpts = { now: opts.now, profiles: opts.profiles, places: opts.places, currentProfileId: opts.currentProfileId };
+  const norm = normalize(opts.input);
+
+  // 1. Answer to a pending "À quelle heure ?" question
+  if (opts.pending?.kind === "time") {
+    const draft = opts.pending.draft;
+    if (CANCEL_RE.test(norm)) return { text: "D'accord, je n'ajoute rien.", actions: [], changed: false, fast: true };
+    if (ALL_DAY_RE.test(norm)) {
+      const day = new Date(draft.start);
+      day.setHours(0, 0, 0, 0);
+      return createFromQuick({ ...draft, allDay: true, start: day, end: new Date(day.getTime() + 86_400_000) }, opts);
+    }
+    const reply = parseQuickAdd(opts.input, qaOpts);
+    if (reply.hasExplicitTime) {
+      // duration: from the reply when it is a range ("de 14h à 16h"), otherwise the default for this kind of event
+      const combined = parseQuickAdd(`${draft.title} ${opts.input}`, qaOpts);
+      const start = new Date(draft.start);
+      start.setHours(reply.start.getHours(), reply.start.getMinutes(), 0, 0);
+      const end = new Date(start.getTime() + (combined.end.getTime() - combined.start.getTime()));
+      return createFromQuick({ ...draft, allDay: false, start, end, hasExplicitTime: true }, opts);
+    }
+    // not an answer to the question: handle as a new request
+  }
+
+  // 2. Weather questions: deterministic, fast, any city
+  const wq = parseWeatherQuestion(opts.input, opts.now, opts.places);
+  if (wq) {
+    opts.onStep?.(STEP_LABEL.getWeather);
+    const args: Record<string, unknown> = {
+      location: wq.location,
+      date: wq.dateOnly ? localIso(wq.at).slice(0, 10) : localIso(wq.at),
+    };
+    const result = await opts.executor.run("getWeather", args);
+    return { text: weatherSentence(result, wq, opts.now), actions: [{ name: "getWeather", args, result }], changed: false, fast: true };
+  }
+
+  // 3. Simple "Ajoute …" commands
+  const quick = quickCreateFromCommand(opts.input, qaOpts);
+  if (quick) {
+    if (!quick.hasExplicitTime && !ALL_DAY_RE.test(norm)) {
+      const day = fmtRelativeDay(quick.start, opts.now).toLowerCase();
       return {
-        text: "L'assistant local n'est pas disponible. Je peux seulement ajouter des événements simples, par exemple « Ajoute dentiste jeudi à 16h ».",
+        text: `À quelle heure souhaitez-vous « ${quick.title} » ${day} ?`,
         actions: [],
         changed: false,
         fast: true,
+        pending: { kind: "time", draft: quick },
       };
     }
-    const args: Record<string, unknown> = {
-      title: quick.title,
-      start: quick.allDay ? localIso(quick.start).slice(0, 10) : localIso(quick.start),
-      end: quick.allDay ? undefined : localIso(quick.end),
-      allDay: quick.allDay,
-      profiles: quick.profileIds,
-      location: quick.location?.label,
-      type: quick.type,
-      recurrence: quick.recurrence
-        ? { freq: quick.recurrence.freq, interval: quick.recurrence.interval, weekdays: quick.recurrence.byWeekday?.map(String) }
-        : undefined,
+    return createFromQuick(quick, opts);
+  }
+
+  if (!opts.llm) {
+    return {
+      text: "L'assistant local n'est pas disponible. Je peux seulement ajouter des événements simples, par exemple « Ajoute dentiste jeudi à 16h ».",
+      actions: [],
+      changed: false,
+      fast: true,
     };
-    opts.onStep?.(STEP_LABEL.createEvent);
-    const result = await opts.executor.run("createEvent", args);
-    const who = quick.profileIds
-      .map((id) => opts.profiles.find((p) => p.id === id))
-      .filter((p) => p && p.id !== opts.currentProfileId)
-      .map((p) => p!.name);
-    const when = `${fmtRelativeDay(quick.start, opts.now).toLowerCase()}${quick.allDay ? "" : ` à ${fmtTime(quick.start)}`}`;
-    const text = result.ok
-      ? `C'est noté : ${quick.title} ${when}${who.length ? ` pour ${who.join(" et ")}` : ""}.`
-      : `Je n'ai pas pu ajouter l'événement : ${result.summary}`;
-    return { text, actions: [{ name: "createEvent", args, result }], changed: result.ok, fast: true };
   }
   return runAgent({ ...opts, llm: opts.llm });
+}
+
+async function createFromQuick(quick: QuickAddResult, opts: UtteranceOptions): Promise<AgentResult> {
+  const args: Record<string, unknown> = {
+    title: quick.title,
+    start: quick.allDay ? localIso(quick.start).slice(0, 10) : localIso(quick.start),
+    end: quick.allDay ? undefined : localIso(quick.end),
+    allDay: quick.allDay,
+    profiles: quick.profileIds,
+    location: quick.location?.label,
+    type: quick.type,
+    recurrence: quick.recurrence
+      ? { freq: quick.recurrence.freq, interval: quick.recurrence.interval, weekdays: quick.recurrence.byWeekday?.map(String) }
+      : undefined,
+  };
+  opts.onStep?.(STEP_LABEL.createEvent);
+  const result = await opts.executor.run("createEvent", args);
+  const who = quick.profileIds
+    .map((id) => opts.profiles.find((p) => p.id === id))
+    .filter((p) => p && p.id !== opts.currentProfileId)
+    .map((p) => p!.name);
+  const when = `${fmtRelativeDay(quick.start, opts.now).toLowerCase()}${quick.allDay ? ", toute la journée" : ` à ${fmtTime(quick.start)}`}`;
+  const text = result.ok
+    ? `C'est noté : ${quick.title} ${when}${who.length ? ` pour ${who.join(" et ")}` : ""}.`
+    : `Je n'ai pas pu ajouter l'événement : ${result.summary}`;
+  return { text, actions: [{ name: "createEvent", args, result }], changed: result.ok, fast: true };
+}
+
+function weatherSentence(result: ToolResult, wq: WeatherQuestion, now: Date): string {
+  if (!result.ok) return `Je n'ai pas la météo : ${result.summary}.`;
+  const d = result.data as {
+    location: string;
+    conditions: string;
+    temperature?: number;
+    tMin?: number;
+    tMax?: number;
+    precipitationProbability: number;
+    windKmh?: number;
+    windMaxKmh?: number;
+  };
+  const sameDay = wq.at.toDateString() === now.toDateString();
+  const day = fmtRelativeDay(wq.at, now);
+  const rain = `${d.precipitationProbability} % de risque de pluie`;
+  if (wq.dateOnly) {
+    return `${day} à ${d.location} : ${d.conditions.toLowerCase()}, entre ${d.tMin} et ${d.tMax} degrés, ${rain}.`;
+  }
+  const isNow = Math.abs(wq.at.getTime() - now.getTime()) < 30 * 60000;
+  const when = isNow ? "En ce moment" : sameDay ? `Aujourd'hui à ${fmtTime(wq.at)}` : `${day} à ${fmtTime(wq.at)}`;
+  const advice = d.precipitationProbability >= 60 ? " Prenez un parapluie." : "";
+  return `${when} à ${d.location} : ${d.conditions.toLowerCase()}, ${d.temperature} degrés, ${rain}, vent ${d.windKmh} km/h.${advice}`;
 }
 
 const STEP_LABEL: Record<string, string> = {

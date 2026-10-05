@@ -60,6 +60,12 @@ export function QuickAdd({
       setText("");
       return;
     }
+    // no time given: let the assistant ask "À quelle heure ?" (unless "toute la journée")
+    if (parsed!.allDay && !/journ[ée]e/i.test(t)) {
+      onAskAssistant(`Ajoute ${t}`);
+      setText("");
+      return;
+    }
     const draft = toDraft()!;
     if (!calendar) return;
     setText("");

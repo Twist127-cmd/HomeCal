@@ -3,7 +3,7 @@
 import clsx from "clsx";
 import { Mic, MicOff, Send, Sparkles, Trash2, Undo2, Volume2, VolumeX, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { handleUtterance, type AgentResult } from "@/assistant/agent";
+import { handleUtterance, isQuestion, type AgentResult, type PendingQuestion } from "@/assistant/agent";
 import { ToolExecutor } from "@/assistant/executor";
 import { buildSystemPrompt } from "@/assistant/prompt";
 import { useApp } from "@/components/app/AppProvider";
@@ -57,6 +57,8 @@ export function AssistantPanel({
   const abortRef = useRef<AbortController | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const handledInitial = useRef<string | null>(null);
+  const pendingRef = useRef<PendingQuestion | null>(null);
+  const listenRef = useRef<() => void>(() => {});
 
   // LLM health check when opening
   useEffect(() => {
@@ -72,11 +74,21 @@ export function AssistantPanel({
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
   }, [local, history.length, phase]);
 
+  /** Speak `text`, then call `onDone` (immediately when the voice is muted). */
   const speak = useCallback(
-    (text: string) => {
-      if (muted || !tts.isSupported()) return;
+    (text: string, onDone?: () => void) => {
+      if (muted || !tts.isSupported()) {
+        onDone?.();
+        return;
+      }
       setPhase("speaking");
-      tts.speak(text, { lang: household?.settings.voice.lang ?? "fr-FR", onEnd: () => setPhase((p) => (p === "speaking" ? "idle" : p)) });
+      tts.speak(text, {
+        lang: household?.settings.voice.lang ?? "fr-FR",
+        onEnd: () => {
+          setPhase((p) => (p === "speaking" ? "idle" : p));
+          onDone?.();
+        },
+      });
     },
     [muted, tts, household?.settings.voice.lang],
   );
@@ -113,6 +125,7 @@ export function AssistantPanel({
           profiles,
           places,
           currentProfileId: myProfileId,
+          pending: pendingRef.current,
           signal: abortRef.current.signal,
           onStep: setStep,
         });
@@ -120,6 +133,7 @@ export function AssistantPanel({
         const msg = (e as Error).name === "AbortError" ? "Interrompu." : `L'assistant local ne répond pas (${(e as Error).message}).`;
         result = { text: msg, actions: [], changed: false };
       }
+      pendingRef.current = result.pending ?? null;
 
       const undo = result.actions.filter((a) => a.result.undo).map((a) => a.result.undo!);
       setLocal((l) =>
@@ -137,7 +151,10 @@ export function AssistantPanel({
       );
       setPhase("idle");
       setStep("");
-      if (fromVoice || !muted) speak(result.text);
+      // When the assistant asks a question, re-open the microphone for the answer
+      const reopenMic = isQuestion(result.text) ? () => listenRef.current() : undefined;
+      if (fromVoice || !muted) speak(result.text, reopenMic);
+      else reopenMic?.();
 
       // persist conversation (best effort)
       const ts = new Date().toISOString();
@@ -168,6 +185,10 @@ export function AssistantPanel({
       onEnd: () => setPhase((p) => (p === "listening" ? "idle" : p)),
     });
   }, [speech, tts, household?.settings.voice.lang, send]);
+
+  useEffect(() => {
+    listenRef.current = listen;
+  }, [listen]);
 
   // initial text / listening when opened
   useEffect(() => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { clampToDay, fmtDuration, fmtRange, fmtRelativeDay, fmtTime, inTimeWindow, viewRange } from "@/lib/dates";
 import { layoutDay } from "@/lib/layout";
-import { dateHints, detectIntent, quickCreateFromCommand } from "@/assistant/hints";
+import { dateHints, detectIntent, parseWeatherQuestion, quickCreateFromCommand } from "@/assistant/hints";
 import { d, places, profiles } from "./fixtures";
 
 describe("dates", () => {
@@ -80,6 +80,17 @@ describe("assistant hints", () => {
   it("resolves week-end and samedi après-midi", () => {
     expect(dateHints("ce week-end", now)[0]).toContain("samedi 2026-10-03");
     expect(dateHints("samedi après-midi", now)[0]).toBe("« samedi apres-midi » = samedi 2026-10-03 (13:00–18:00)");
+  });
+
+  it("parses weather questions with any city", () => {
+    expect(parseWeatherQuestion("Quel temps fera-t-il à Genève demain ?", now)).toEqual({ location: "Genève", at: d(2026, 10, 1), dateOnly: true });
+    expect(parseWeatherQuestion("Météo sur Saint-Maurice samedi après-midi", now)).toMatchObject({ location: "Saint-Maurice", at: d(2026, 10, 3, 14), dateOnly: false });
+    expect(parseWeatherQuestion("Va-t-il pleuvoir à La Chaux-de-Fonds ?", now)?.location).toBe("La Chaux-de-Fonds");
+    expect(parseWeatherQuestion("Il fera beau au crossfit jeudi ?", now, places)?.location).toBe("CrossFit");
+    expect(parseWeatherQuestion("Quelle météo demain ?", now)).toEqual({ location: undefined, at: d(2026, 10, 1), dateOnly: true });
+    expect(parseWeatherQuestion("Quel temps fait-il ?", now)?.at).toEqual(now);
+    expect(parseWeatherQuestion("Ajoute pique-nique samedi s'il fait beau", now)).toBeNull();
+    expect(parseWeatherQuestion("Qu'est-ce que j'ai demain ?", now)).toBeNull();
   });
 
   it("detects intents", () => {
