@@ -41,7 +41,7 @@ export function SettingsScreen() {
   const set = (patch: Partial<HouseholdSettings>) => updateSettings(db, householdId, { ...s, ...patch }).catch((e) => toast({ text: e.message, tone: "error" }));
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-6 sm:py-10">
+    <div className="safe-top mx-auto max-w-3xl px-4 pb-6 sm:pb-10">
       <div className="mb-6 flex items-center gap-3">
         <Link href="/" className="inline-flex h-11 w-11 items-center justify-center rounded-full hover:bg-surface-2" aria-label="Retour">
           <ArrowLeft size={22} />

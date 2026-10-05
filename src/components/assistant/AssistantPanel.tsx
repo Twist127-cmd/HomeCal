@@ -223,7 +223,7 @@ export function AssistantPanel({
     <div className="fixed inset-0 z-40 flex justify-end">
       <div className="absolute inset-0 animate-fade-in bg-black/30" onClick={onClose} />
       <aside className="relative flex h-full w-full max-w-md animate-slide-left flex-col bg-surface shadow-pop">
-        <header className="flex items-center gap-2 border-b border-border px-4 py-3">
+        <header className="safe-top flex items-center gap-2 border-b border-border px-4 pb-3">
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent-soft text-accent">
             <Sparkles size={18} />
           </span>

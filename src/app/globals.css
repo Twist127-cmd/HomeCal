@@ -137,3 +137,13 @@ button,
 .safe-bottom {
   padding-bottom: max(env(safe-area-inset-bottom), 0.75rem);
 }
+
+/* iPhone notch / status bar (viewport-fit=cover) */
+.safe-top {
+  padding-top: max(env(safe-area-inset-top), 0.75rem);
+}
+@media (min-width: 640px) {
+  .safe-top {
+    padding-top: max(env(safe-area-inset-top), 1rem);
+  }
+}

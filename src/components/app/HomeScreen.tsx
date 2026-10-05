@@ -100,10 +100,11 @@ export function HomeScreen() {
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
       {/* ---------- header ---------- */}
-      <header className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 px-3 pt-3 sm:px-5 sm:pt-4">
-        <div className="flex min-w-0 items-baseline gap-3">
-          <span className="tabular text-3xl font-semibold tracking-tight sm:text-4xl">{fmt(now, "HH:mm")}</span>
-          <span className="truncate text-sm font-medium text-muted sm:text-base">{capitalize(fmt(now, "EEEE d MMMM"))}</span>
+      <header className="safe-top flex shrink-0 flex-wrap items-center gap-x-2 gap-y-2 px-3 sm:gap-x-4 sm:px-5">
+        <div className="flex min-w-0 items-baseline gap-2 sm:gap-3">
+          <span className="tabular text-2xl font-semibold tracking-tight sm:text-4xl">{fmt(now, "HH:mm")}</span>
+          <span className="truncate text-sm font-medium text-muted sm:hidden">{fmt(now, "EEE d MMM")}</span>
+          <span className="hidden truncate text-base font-medium text-muted sm:inline">{capitalize(fmt(now, "EEEE d MMMM"))}</span>
         </div>
         {curW && cur && (
           <span className="flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-sm shadow-card" title={curW.label}>
@@ -122,8 +123,8 @@ export function HomeScreen() {
           </span>
         )}
         <div className="flex-1" />
-        <div className="order-last flex w-full items-center gap-2 md:order-none md:w-auto">
-          <div className="flex items-center gap-1">
+        <div className="order-last flex w-full flex-col gap-2 md:order-none md:w-auto md:flex-row md:items-center">
+          <div className="flex min-w-0 items-center gap-1">
             <Button variant="ghost" size="icon" onClick={() => move(-1)} aria-label="Précédent">
               <ChevronLeft size={22} />
             </Button>
@@ -133,17 +134,17 @@ export function HomeScreen() {
             <Button variant="ghost" size="icon" onClick={() => move(1)} aria-label="Suivant">
               <ChevronRight size={22} />
             </Button>
+            <span className="ml-1 min-w-0 flex-1 truncate text-sm font-semibold md:w-40 md:flex-none xl:w-48">{title}</span>
           </div>
-          <span className="min-w-0 flex-1 truncate text-sm font-semibold md:w-40 md:flex-none xl:w-48">{title}</span>
-          <div className="flex rounded-full bg-surface-2 p-1">
+          {/* mobile: full-width segmented control on its own line, above the navigation */}
+          <div className="order-first grid w-full grid-cols-4 rounded-full bg-surface-2 p-1 md:order-none md:flex md:w-auto">
             {VIEWS.map((v) => (
               <button
                 key={v.id}
                 onClick={() => setView(v.id)}
                 className={clsx(
-                  "h-9 rounded-full px-3 text-sm font-medium transition sm:px-4",
+                  "h-9 min-w-0 rounded-full px-2 text-sm font-medium transition md:px-4",
                   view === v.id ? "bg-surface shadow-sm" : "text-muted hover:text-text",
-                  v.id === "day" && "hidden sm:block",
                 )}
               >
                 {v.label}
