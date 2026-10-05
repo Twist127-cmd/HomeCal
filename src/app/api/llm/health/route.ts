@@ -1,15 +1,25 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
+import { AccessError, assertLLMAccess, ollamaTarget } from "@/lib/server/llmAccess";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  const base = (process.env.OLLAMA_BASE_URL || "http://localhost:11434").replace(/^\uFEFF/, "").trim();
+export async function GET(req: NextRequest) {
+  const target = ollamaTarget();
+  if (target.remote) {
+    try {
+      await assertLLMAccess(req.headers.get("authorization"));
+    } catch (e) {
+      const status = e instanceof AccessError ? e.status : 401;
+      return NextResponse.json({ ok: false, via: "proxy", error: (e as Error).message }, { status });
+    }
+  }
   try {
-    const res = await fetch(`${base}/api/tags`, { signal: AbortSignal.timeout(3000), cache: "no-store" });
+    const res = await fetch(`${target.base}/api/tags`, { headers: target.headers, signal: AbortSignal.timeout(5000), cache: "no-store" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = (await res.json()) as { models?: { name: string }[] };
-    return NextResponse.json({ ok: true, via: "proxy", models: (data.models ?? []).map((m) => m.name) });
+    return NextResponse.json({ ok: true, via: "proxy", remote: target.remote, models: (data.models ?? []).map((m) => m.name) });
   } catch (e) {
-    return NextResponse.json({ ok: false, via: "proxy", error: (e as Error).message }, { status: 503 });
+    const msg = target.remote ? `Le PC Ollama est éteint ou injoignable (${(e as Error).message})` : (e as Error).message;
+    return NextResponse.json({ ok: false, via: "proxy", error: msg }, { status: 503 });
   }
 }

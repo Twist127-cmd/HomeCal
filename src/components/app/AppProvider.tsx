@@ -134,7 +134,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [householdId, user]);
 
   const llmSettings = household?.settings.llm;
-  const llm = useMemo(() => (llmSettings ? createLLMProvider(llmSettings) : null), [llmSettings]);
+  const llm = useMemo(
+    () => (llmSettings ? createLLMProvider(llmSettings, () => auth().currentUser?.getIdToken() ?? Promise.resolve(null)) : null),
+    [llmSettings],
+  );
 
   const myProfileId = useMemo(() => {
     if (userDoc?.profileId && profiles.some((p) => p.id === userDoc.profileId)) return userDoc.profileId;

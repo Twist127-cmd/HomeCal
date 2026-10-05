@@ -9,6 +9,8 @@ export interface OllamaOptions {
   mode: LLMMode;
   /** Context window. Smaller = more of the model fits in VRAM (faster). */
   numCtx?: number;
+  /** Firebase ID token sent to the HomeCal proxy (required when it forwards to the Ollama tunnel). */
+  getAuthToken?: () => Promise<string | null | undefined>;
 }
 
 /**
@@ -29,13 +31,18 @@ export class OllamaProvider implements LLMProvider {
     return this.opts.model;
   }
 
+  private async proxyHeaders(): Promise<Record<string, string>> {
+    const t = await this.opts.getAuthToken?.().catch(() => null);
+    return t ? { Authorization: `Bearer ${t}` } : {};
+  }
+
   private endpoint(route: "proxy" | "direct") {
     return route === "proxy" ? "/api/llm/chat" : `${this.opts.baseUrl.replace(/\/$/, "")}/api/chat`;
   }
 
   async health(): Promise<LLMHealth> {
     const tryProxy = async (): Promise<LLMHealth> => {
-      const r = await fetch("/api/llm/health", { cache: "no-store", signal: AbortSignal.timeout(4000) });
+      const r = await fetch("/api/llm/health", { cache: "no-store", headers: await this.proxyHeaders(), signal: AbortSignal.timeout(8000) });
       const j = (await r.json()) as LLMHealth;
       return { ...j, via: "proxy" };
     };
@@ -89,7 +96,7 @@ export class OllamaProvider implements LLMProvider {
     };
     const res = await fetch(this.endpoint(this.resolved!), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(this.resolved === "proxy" ? await this.proxyHeaders() : {}) },
       body: JSON.stringify(body),
       signal: req.signal,
     });

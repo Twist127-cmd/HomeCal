@@ -71,6 +71,9 @@ export function SettingsScreen() {
             </div>
           </Field>
           <InviteBlock />
+          <p className="text-xs text-muted">
+            Identifiant du foyer : <span className="font-mono select-all">{householdId}</span>
+          </p>
         </Section>
 
         {/* ---------------- profiles ---------------- */}
@@ -412,7 +415,7 @@ function AssistantSettings({ settings, onChange }: { settings: HouseholdSettings
           disabled={testing}
           onClick={async () => {
             setTesting(true);
-            setHealth(await createLLMProvider(llm).health());
+            setHealth(await createLLMProvider(llm, () => auth().currentUser?.getIdToken() ?? Promise.resolve(null)).health());
             setTesting(false);
           }}
         >

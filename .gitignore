@@ -34,6 +34,10 @@ yarn-error.log*
 .env*
 !.env.example
 
+# ollama relay (secret token, logs)
+ollama-host/relay.env
+ollama-host/relay.log
+
 # firebase
 .firebase/
 firebase-debug.log*
