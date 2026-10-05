@@ -59,6 +59,9 @@ Ouvrir https://login.tailscale.com/admin/machines et **supprimer l'ancienne mach
    ```
    Sans `-Token`, le script génère une nouvelle clé : il faut alors la mettre à jour sur Vercel (voir « Nouvelle clé » ci-dessous).
 4. Vérifier que le script affiche **`https://homecal-ollama.tailc0b8c2.ts.net`**.
+   Attendre ensuite que le tunnel soit joignable depuis Internet (souvent ~10 min, parfois plus) :
+   ouvrir https://homecal.vercel.app/api/llm/health?probe=1 → doit afficher `"reachable": true`.
+   Tant que la réponse contient `ENOTFOUND`, l'adresse publique n'est pas encore propagée : patienter.
 5. Redémarrer Ollama (icône près de l'horloge → Quit, puis relancer).
 6. Désactiver la mise en veille : Paramètres → Système → Alimentation → Veille : **Jamais**.
 7. Tester : HomeCal → Réglages → Assistant → **Tester la connexion** → « Connecté (proxy) ».
