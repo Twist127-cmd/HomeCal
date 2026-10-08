@@ -22,8 +22,9 @@ import type { CalendarProvider } from "@/providers/calendar";
 import type { GeocodingProvider } from "@/providers/geocoding/GeocodingProvider";
 import type { RoutingProvider } from "@/providers/routing/RoutingProvider";
 import { describeWeather, type WeatherProvider } from "@/providers/weather/WeatherProvider";
+import { isModuleTool, runModuleTool, type ModuleContext } from "./moduleTools";
 
-export interface ToolContext {
+export interface ToolContext extends ModuleContext {
   now(): Date;
   calendar: CalendarProvider & { restoreEvent?(e: CalendarEvent): Promise<void>; replaceEvent?(e: CalendarEvent): Promise<void> };
   /** Current events snapshot (realtime cache) */
@@ -124,6 +125,7 @@ export class ToolExecutor {
         case "createReminder":
           return await this.createReminder(args);
         default:
+          if (isModuleTool(name)) return await runModuleTool(name, args, this.ctx);
           return { ok: false, data: { error: `Outil inconnu : ${name}` }, summary: `Outil inconnu ${name}` };
       }
     } catch (e) {

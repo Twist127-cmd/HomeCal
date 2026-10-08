@@ -12,7 +12,7 @@ function tool(name: string, description: string, properties: Record<string, unkn
 }
 
 /** The ONLY way the LLM can act on HomeCal. It never touches Firestore directly. */
-export const TOOLS: ToolDefinition[] = [
+export const CALENDAR_TOOLS: ToolDefinition[] = [
   tool(
     "createEvent",
     "Créer un événement dans le calendrier familial.",
@@ -130,4 +130,70 @@ export const TOOLS: ToolDefinition[] = [
   ),
 ];
 
+const labelParam = { type: "string", description: "Nom du minuteur, ex. Pâtes" };
+const itemsParam = { type: "array", items: { type: "string" }, description: "Articles, ex. [\"lait\", \"6 œufs\"]" };
+
+export const TIMER_TOOLS: ToolDefinition[] = [
+  tool("createTimer", "Lancer un minuteur.", { minutes: { type: "number" }, seconds: { type: "number" }, label: labelParam }, ["minutes"]),
+  tool("listTimers", "Lister les minuteurs en cours et le temps restant.", {}),
+  tool("cancelTimer", "Annuler un minuteur (ou tous avec all=true).", { label: labelParam, all: { type: "boolean" } }),
+  tool("pauseTimer", "Mettre un minuteur en pause.", { label: labelParam }),
+  tool("resumeTimer", "Reprendre un minuteur en pause.", { label: labelParam }),
+  tool("addTimeToTimer", "Ajouter du temps à un minuteur.", { minutes: { type: "number" }, label: labelParam }, ["minutes"]),
+];
+
+export const SHOPPING_TOOLS: ToolDefinition[] = [
+  tool("addShoppingItem", "Ajouter des articles à la liste de courses partagée du foyer.", { items: itemsParam }, ["items"]),
+  tool("removeShoppingItem", "Retirer des articles de la liste de courses.", { items: itemsParam }, ["items"]),
+  tool("completeShoppingItem", "Cocher des articles achetés.", { items: itemsParam }, ["items"]),
+  tool("uncompleteShoppingItem", "Décocher des articles.", { items: itemsParam }, ["items"]),
+  tool("getShoppingList", "Lire ce qu'il reste à acheter.", {}),
+  tool("clearCompletedShoppingItems", "Supprimer les articles déjà cochés.", {}),
+];
+
+export const MUSIC_TOOLS: ToolDefinition[] = [
+  tool("playMusic", "Lancer de la musique sur Spotify (recherche libre : artiste, titre, ambiance). Sans query = reprendre.", { query: { type: "string" } }),
+  tool("playPlaylist", "Lancer une playlist de l'utilisateur par son nom.", { name: { type: "string" } }, ["name"]),
+  tool("pauseMusic", "Mettre la musique en pause.", {}),
+  tool("resumeMusic", "Reprendre la lecture.", {}),
+  tool("nextTrack", "Morceau suivant.", {}),
+  tool("previousTrack", "Morceau précédent.", {}),
+  tool("setMusicVolume", "Régler le volume (0-100) ou le changer (delta).", { volume: { type: "number" }, delta: { type: "number" } }),
+  tool("changeMusicDevice", "Envoyer la musique sur un autre appareil Spotify (enceinte, téléphone…).", { device: { type: "string" } }, ["device"]),
+  tool("searchMusic", "Rechercher sur Spotify sans lancer.", { query: { type: "string" } }, ["query"]),
+  tool("getCurrentTrack", "Savoir ce qui est en lecture.", {}),
+];
+
+export const SCENE_TOOLS: ToolDefinition[] = [
+  tool("activateScene", "Activer une scène HomeCal (ex. Matin, Cuisine, Soir).", { name: { type: "string" } }, ["name"]),
+  tool("exitScene", "Quitter la scène et revenir au calendrier.", {}),
+];
+
+export const NAVIGATION_TOOLS: ToolDefinition[] = [
+  tool("getNextDeparture", "Heure de départ conseillée pour le prochain rendez-vous (ou celui nommé).", { query: { type: "string" } }),
+  tool("openNavigation", "Ouvrir Waze / Google Maps / Apple Plans vers le prochain rendez-vous (ou celui nommé).", {
+    query: { type: "string" },
+    app: { type: "string", enum: ["waze", "google", "apple"] },
+  }),
+];
+
+export const TOOLS: ToolDefinition[] = [...CALENDAR_TOOLS, ...TIMER_TOOLS, ...SHOPPING_TOOLS, ...MUSIC_TOOLS, ...SCENE_TOOLS, ...NAVIGATION_TOOLS];
 export const TOOL_NAMES = TOOLS.map((t) => t.function.name);
+
+/**
+ * Only send the tool groups relevant to the request: the local model is small and
+ * slow, a shorter prompt is faster and more accurate.
+ */
+export function selectTools(input: string): ToolDefinition[] {
+  const n = input
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "");
+  const tools = [...CALENDAR_TOOLS];
+  if (/\b(minuteur|minuterie|chrono|timer|reveille|sonne dans)\b/.test(n)) tools.push(...TIMER_TOOLS);
+  if (/\b(courses|commissions|liste|acheter|achete)\b/.test(n)) tools.push(...SHOPPING_TOOLS);
+  if (/\b(musique|spotify|chanson|morceau|playlist|son|volume|ecouter|joue|enceinte|album|artiste)\b/.test(n)) tools.push(...MUSIC_TOOLS);
+  if (/\b(mode|scene|ambiance)\b/.test(n)) tools.push(...SCENE_TOOLS);
+  if (/\b(partir|depart|itineraire|waze|maps|trajet|route|gps|navigation)\b/.test(n)) tools.push(...NAVIGATION_TOOLS);
+  return tools;
+}

@@ -1,11 +1,12 @@
 import type { ChatMessage, LLMProvider } from "@/providers/llm";
 import { localIso, type ToolExecutor, type ToolResult } from "./executor";
 import { dateHints, detectIntent, parseWeatherQuestion, quickCreateFromCommand, type Intent, type WeatherQuestion } from "./hints";
-import { TOOLS } from "./tools";
+import { selectTools } from "./tools";
+import { moduleFastPath, sentence } from "./fastpaths";
 import { fmtRelativeDay, fmtTime } from "@/lib/dates";
 import { normalize } from "@/lib/profiles";
 import { parseQuickAdd, type QuickAddResult } from "@/lib/quickadd";
-import type { FavoritePlace, Profile } from "@/lib/types";
+import type { FavoritePlace, Profile, Scene } from "@/lib/types";
 
 export interface AgentAction {
   name: string;
@@ -59,13 +60,14 @@ export async function runAgent(opts: {
     { role: "user", content: userContent },
   ];
   const intent = detectIntent(opts.input);
+  const tools = selectTools(opts.input);
   const actions: AgentAction[] = [];
   const seen = new Map<string, number>();
   let nudged = false;
 
   for (let step = 0; step < MAX_STEPS; step++) {
     opts.onStep?.(step === 0 ? "Je réfléchis…" : "Je vérifie…");
-    const res = await opts.llm.chat({ messages, tools: TOOLS, signal: opts.signal });
+    const res = await opts.llm.chat({ messages, tools, signal: opts.signal });
 
     if (!res.toolCalls.length) {
       // Guard: the model claims an action without having called the tool.
@@ -112,10 +114,7 @@ export async function runAgent(opts: {
  * LLM agent for everything else.
  */
 /** A question the assistant asked and whose answer it is waiting for. */
-export interface PendingQuestion {
-  kind: "time";
-  draft: QuickAddResult;
-}
+export type PendingQuestion = { kind: "time"; draft: QuickAddResult } | { kind: "musicChoice"; choices: string[]; tool: "playPlaylist" | "playMusic" };
 
 export interface UtteranceOptions {
   input: string;
@@ -129,6 +128,8 @@ export interface UtteranceOptions {
   currentProfileId?: string;
   /** Question asked in the previous turn (e.g. "À quelle heure ?") */
   pending?: PendingQuestion | null;
+  /** Scenes, to recognise "mode cuisine" */
+  scenesForParsing?: Scene[];
   signal?: AbortSignal;
   onStep?(label: string): void;
 }
@@ -165,6 +166,24 @@ export async function handleUtterance(opts: UtteranceOptions): Promise<AgentResu
     }
     // not an answer to the question: handle as a new request
   }
+
+  // 1b. Answer to "Lequel voulez-vous ?" (music choices)
+  if (opts.pending?.kind === "musicChoice") {
+    const { choices, tool } = opts.pending;
+    const ordinals = ["premier|premiere|1", "deuxieme|second|seconde|2", "troisieme|3", "quatrieme|4"];
+    const idx = ordinals.findIndex((o) => new RegExp(`\\b(${o})\\b`).test(norm));
+    const pick = idx >= 0 ? choices[idx] : choices.find((c) => norm.includes(normalize(c)) || normalize(c).includes(norm));
+    if (pick) {
+      const args = tool === "playPlaylist" ? { name: pick } : { query: pick };
+      const result = await opts.executor.run(tool, args);
+      return { text: sentence(result.summary), actions: [{ name: tool, args, result }], changed: result.ok, fast: true };
+    }
+    if (CANCEL_RE.test(norm)) return { text: "D'accord.", actions: [], changed: false, fast: true };
+  }
+
+  // 1c. Timers, shopping list, scenes, navigation, music: deterministic commands
+  const mod = await moduleFastPath(opts.input, opts.executor, opts.scenesForParsing ?? [], opts.onStep);
+  if (mod) return mod;
 
   // 2. Weather questions: deterministic, fast, any city
   const wq = parseWeatherQuestion(opts.input, opts.now, opts.places);
