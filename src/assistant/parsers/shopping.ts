@@ -1,29 +1,28 @@
-import { parseShoppingCommand } from "@/lib/shopping";
+import { parseShoppingUtterance } from "@/lib/shopping";
 import { call, type DomainModule, type ParsedIntent } from "../router/types";
 import { shoppingResponse } from "../responses/shopping";
 
-/** Shopping list: shopping.add / remove / complete / uncomplete / list / clearCompleted / clearAll */
+/**
+ * Shopping list: shopping.add / remove / complete / uncomplete / list / clearCompleted.
+ *
+ * Parsing is done on `u.norm` (synonym verbs + list markers + food/household lexicon,
+ * scored), item names are restored with accents from `u.text`.
+ * "Vider toute la liste" (clearAll) is deliberately NOT a fast path: it is destructive and
+ * there is no dedicated tool, so it is left to the LLM / the UI.
+ */
 export const shoppingModule: DomainModule = {
   domain: "shopping",
 
   parse(u) {
-    const c = parseShoppingCommand(u.text);
-    if (!c) return null;
-    const base = { raw: u.raw, confidence: 0.95 };
-    switch (c.op) {
-      case "add":
-        return { ...base, intent: "shopping.add", entities: { items: c.items } };
-      case "remove":
-        return { ...base, intent: "shopping.remove", entities: { names: c.names } };
-      case "check":
-        return { ...base, intent: "shopping.complete", entities: { names: c.names } };
-      case "uncheck":
-        return { ...base, intent: "shopping.uncomplete", entities: { names: c.names } };
-      case "clearChecked":
-        return { ...base, intent: "shopping.clearCompleted", entities: {} };
-      case "list":
-        return { ...base, intent: "shopping.list", entities: {} };
-    }
+    const s = parseShoppingUtterance(u.norm, u.text, u.raw);
+    if (!s) return null;
+    return {
+      intent: s.intent,
+      confidence: s.confidence,
+      destructive: s.destructive,
+      entities: { items: s.items, names: s.names },
+      raw: u.raw,
+    };
   },
 
   async run(p: ParsedIntent, env) {

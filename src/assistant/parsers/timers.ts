@@ -2,27 +2,33 @@ import { parseTimerCommand } from "@/lib/timers";
 import { call, type DomainModule } from "../router/types";
 import { timerResponse } from "../responses/timers";
 
-/** Timers: timer.create / cancel / pause / resume / extend / list / remaining */
+/**
+ * Timers: timer.create / cancel / pause / resume / extend / list / remaining.
+ * Parsing lives in src/lib/timers.ts (composable patterns: timer words, verbs, durations).
+ * "Pause" / "Reprends" alone belong to music: a timer word is required for control intents.
+ */
 export const timerModule: DomainModule = {
   domain: "timers",
 
   parse(u) {
     const c = parseTimerCommand(u.text);
     if (!c) return null;
-    const base = { raw: u.raw, confidence: 0.95 };
+    const raw = u.raw;
     switch (c.op) {
       case "create":
-        return { ...base, intent: "timer.create", entities: { durationMs: c.durationMs, label: c.label } };
+        return { raw, confidence: c.confidence ?? 0.95, intent: "timer.create", entities: { durationMs: c.durationMs, label: c.label } };
       case "cancel":
-        return { ...base, intent: "timer.cancel", entities: { label: c.label, all: c.all } };
+        return { raw, confidence: 0.97, intent: "timer.cancel", entities: { label: c.label, all: c.all } };
       case "pause":
-        return { ...base, intent: "timer.pause", entities: { label: c.label } };
+        return { raw, confidence: 0.97, intent: "timer.pause", entities: { label: c.label } };
       case "resume":
-        return { ...base, intent: "timer.resume", entities: { label: c.label } };
+        return { raw, confidence: 0.97, intent: "timer.resume", entities: { label: c.label } };
       case "add":
-        return { ...base, intent: "timer.extend", entities: { durationMs: c.durationMs, label: c.label } };
+        return { raw, confidence: c.confidence ?? 0.95, intent: "timer.extend", entities: { durationMs: c.durationMs, label: c.label } };
       case "list":
-        return { ...base, intent: "timer.list", entities: {} };
+        return { raw, confidence: 0.97, intent: "timer.list", entities: {} };
+      case "remaining":
+        return { raw, confidence: 0.95, intent: "timer.remaining", entities: { label: c.label } };
     }
   },
 
@@ -39,6 +45,6 @@ export const timerModule: DomainModule = {
     };
     const [name, args] = map[p.intent] ?? map["timer.list"];
     const a = await call(env, name, args, p.intent === "timer.create" ? "Je lance le minuteur…" : undefined);
-    return { text: timerResponse(p.intent, a.result), actions: [a], changed: !!a.result.changed };
+    return { text: timerResponse(p.intent, a.result, { label: e.label }), actions: [a], changed: !!a.result.changed };
   },
 };

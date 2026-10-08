@@ -41,7 +41,6 @@ const FILLERS = [
   "ben",
   "bah",
   "alors",
-  "bon",
   "voila",
   "ok",
   "okay",

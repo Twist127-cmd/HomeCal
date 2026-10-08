@@ -80,7 +80,7 @@ export function detectIntent(input: string): Intent {
   if (/\b(supprime|supprimer|efface|effacer|annule|annuler|retire|retirer|enleve|enlever)\b/.test(n)) return "delete";
   if (/\b(deplace|deplacer|decale|decaler|repousse|repousser|avance|avancer|reporte|reporter)\b/.test(n)) return "move";
   if (/\b(modifie|modifier|change|changer|renomme|renommer|remplace)\b/.test(n)) return "update";
-  if (/\b(ajoute|ajouter|cree|creer|planifie|planifier|programme|programmer|note|noter|reserve|reserver|mets|mettre|inscris|rajoute)\b/.test(n)) return "create";
+  if (/\b(ajoute|ajouter|cree|creer|planifie|planifier|programme|programmer|note|noter|reserve|reserver|mets|mettre|inscris|inscrire|rajoute|organise|organiser|prevois|prevoir|bloque|bloquer)\b/.test(n)) return "create";
   return "query";
 }
 
@@ -102,13 +102,35 @@ export interface WeatherQuestion {
   at: Date;
   /** Only a day was given → daily summary */
   dateOnly: boolean;
+  /** "pour mon rendez-vous" / "pour le dentiste" → weather at an event ("" = next event) */
+  eventQuery?: string;
 }
+
+// "il fera combien", "combien de degrés", "quelle température", "il fait froid ?"
+const WEATHER_EXTRA_RE = /\b((fera|fait)(-t)?(-il)?\s+combien|combien de degres|quelle temperature|il fait (beau|chaud|froid|moche|bon)|il fera (beau|chaud|froid|moche|bon)|faire (beau|chaud|froid|moche)|il pleut|il neige|grele|canicule|pleuvoir|pleuvra|pleuvrait|neigera|degres|previsions?|parapluie|fait-il beau|fait-il froid|fait-il chaud)\b/;
+
+const LOWER_STOP = new Set([
+  "demain", "aujourd'hui", "apres-demain", "ce", "cette", "cet", "le", "la", "les", "l'", "midi", "minuit", "soir", "matin", "apres-midi",
+  "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche", "quelle", "quel", "quelle heure", "partir", "maintenant",
+  "week-end", "weekend", "semaine", "heure", "heures", "mon", "ma", "mes", "notre", "nos", "rendez-vous", "rdv", "moment", "y",
+  "fin", "debut", "journee", "soiree", "nuit", "matinee", "verse", "dehors", "exterieur", "un", "une", "quoi", "combien",
+]);
+
+const EVENT_WORDS = /\b(?:pour|pendant|lors de|durant)\s+(?:mon|ma|le|la|l'|notre)\s*(?:prochain(?:e)?\s+)?(rendez-vous|rdv|evenement|reunion|sortie|match|rando(?:nnee)?|[a-z][a-z'-]{2,})\b/;
 
 /** Detect "Quel temps fera-t-il à Genève demain ?" and extract place + date deterministically. */
 export function parseWeatherQuestion(input: string, now: Date, places: { name: string }[] = []): WeatherQuestion | null {
-  const n = normalize(input);
-  if (!WEATHER_RE.test(n)) return null;
+  const n = normalize(input).replace(/[’]/g, "'");
+  if (!WEATHER_RE.test(n) && !WEATHER_EXTRA_RE.test(n)) return null;
   if (detectIntent(input) !== "query") return null;
+  if (/\b(minuteur|courses|playlist|spotify|scene)\b/.test(n)) return null;
+
+  // weather at an event: "est-ce qu'il pleuvra pour mon rendez-vous ?", "météo pour le dentiste"
+  const ev = EVENT_WORDS.exec(n);
+  const generic = !!ev && /^(rendez-vous|rdv|evenement)$/.test(ev[1]);
+  if (ev && !/\b(maison|ville|journee|semaine|week-end|weekend)\b/.test(ev[1]) && (generic || !LOWER_STOP.has(ev[1]))) {
+    return { at: now, dateOnly: false, eventQuery: generic ? "" : ev[1] };
+  }
 
   // favourite place mentioned ("au crossfit", "chez les parents")
   let location = places
@@ -120,6 +142,25 @@ export function parseWeatherQuestion(input: string, now: Date, places: { name: s
     // "à Genève", "sur Lausanne", "pour Saint-Maurice", "en Valais", "au Mont-Pèlerin"
     const m = /(?:^|\s)(?:à|a|au|aux|sur|pour|en|vers|dans)\s+((?:[A-ZÀÂÄÉÈÊËÎÏÔÖÛÜÇ][\p{L}'’-]*)(?:[\s-](?:(?:de|du|des|la|le|les|sur|en|d'|l')\s?)?[A-ZÀÂÄÉÈÊËÎÏÔÖÛÜÇ][\p{L}'’-]*)*)/u.exec(input);
     if (m && !NOT_PLACE.has(normalize(m[1]))) location = m[1].trim();
+  }
+
+  if (!location) {
+    // voice input is often lower-case: "il fera combien a annecy demain"
+    const m = /(?:^|\s)(?:a|au|aux|sur|en|vers|dans)\s+([a-z][a-z'-]+(?:[\s-](?:(?:de|du|des|la|le|les|sur|en|d'|l')\s?)?[a-z][a-z'-]+){0,3})/.exec(n);
+    if (m) {
+      const words: string[] = [];
+      for (const w of m[1].split(/\s+/)) {
+        const connector = /^(de|du|des|sur|en|d'|l')$/.test(w) || (words.length > 0 && /^(la|le|les)$/.test(w));
+        if (!connector && (LOWER_STOP.has(w) || /^\d/.test(w))) break;
+        words.push(w);
+      }
+      // drop trailing linking words ("la chaux de")
+      while (words.length && /^(de|du|des|la|le|les|sur|en|d'|l')$/.test(words[words.length - 1])) words.pop();
+      const cand = words.join(" ");
+      if (cand && !NOT_PLACE.has(cand) && !/^(quelle|quel|combien|moi|nous|toi|vous|la maison|maison|l'exterieur|dehors)$/.test(cand) && cand.length > 2) {
+        location = cand.replace(/(^|[\s-])([a-z])/g, (_, s, c) => s + c.toUpperCase());
+      }
+    }
   }
 
   const r = parseQuickAdd(input, { now });
