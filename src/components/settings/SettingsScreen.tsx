@@ -5,7 +5,11 @@ import { ArrowLeft, Bell, Copy, Home, Mic, Plus, RefreshCw, Star, Trash2, Volume
 import Link from "next/link";
 import { useState } from "react";
 import { useApp } from "@/components/app/AppProvider";
+import { useMusic } from "@/components/music/MusicContext";
 import { PlaceSearch } from "@/components/places/PlaceSearch";
+import { ScenesPanel } from "@/components/scenes/ScenesPanel";
+import { features } from "@/lib/features";
+import { availableNavApps } from "@/lib/navigation";
 import { Avatar, Button, Card, Chip, Field, inputClass, Sheet, Spinner, Toggle } from "@/components/ui/primitives";
 import { toast, Toaster } from "@/components/ui/toast";
 import {
@@ -35,8 +39,10 @@ export function SettingsScreen() {
   const db = firestore();
   const [editProfile, setEditProfile] = useState<Profile | null>(null);
   const [editPlace, setEditPlace] = useState<FavoritePlace | null>(null);
+  const music = useMusic();
 
   if (!household || !householdId) return null;
+  const navApps = availableNavApps(typeof navigator === "undefined" ? "" : navigator.userAgent);
   const s = household.settings;
   const set = (patch: Partial<HouseholdSettings>) => updateSettings(db, householdId, { ...s, ...patch }).catch((e) => toast({ text: e.message, tone: "error" }));
 
@@ -222,10 +228,62 @@ export function SettingsScreen() {
               </select>
             </Field>
           </div>
+          <Field label="Navigation préférée">
+            <div className="flex flex-wrap gap-2">
+              {navApps.map((a) => (
+                <Chip key={a.id} active={s.navigationApp === a.id} onClick={() => set({ navigationApp: a.id })}>
+                  {a.label}
+                </Chip>
+              ))}
+              <Chip active={s.navigationApp === "ask"} onClick={() => set({ navigationApp: "ask" })}>
+                Demander à chaque fois
+              </Chip>
+            </div>
+          </Field>
           <p className="text-xs text-muted">Itinéraires : OpenStreetMap / OSRM (gratuit). Transports publics non pris en charge en V1.</p>
         </Section>
 
         {/* ---------------- assistant ---------------- */}
+        {/* ---------------- music ---------------- */}
+        {features.spotify && (
+          <Section title="Musique">
+            {music.connected ? (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="font-medium">Spotify — Connecté{music.accountName ? ` : ${music.accountName}` : ""}</div>
+                  {music.premium === false && <div className="text-sm text-warn">Spotify Premium est nécessaire pour contrôler la lecture.</div>}
+                </div>
+                <Button variant="danger" size="sm" onClick={music.disconnect}>
+                  Déconnecter Spotify
+                </Button>
+              </div>
+            ) : (
+              <Button variant="primary" onClick={music.connect}>
+                Connecter Spotify
+              </Button>
+            )}
+            <p className="text-xs text-muted">Les playlists de chaque scène (Matin, Cuisine, Soir…) se choisissent dans la section Scènes.</p>
+          </Section>
+        )}
+
+        {/* ---------------- timers ---------------- */}
+        {features.timers && (
+          <Section title="Minuteurs">
+            <Toggle checked={s.timers.sound} onChange={(v) => set({ timers: { ...s.timers, sound: v } })} label="Sonnerie" />
+            <Toggle checked={s.timers.voice} onChange={(v) => set({ timers: { ...s.timers, voice: v } })} label="Synthèse vocale" />
+            <Toggle checked={s.timers.notifications} onChange={(v) => set({ timers: { ...s.timers, notifications: v } })} label="Notifications" />
+          </Section>
+        )}
+
+        {/* ---------------- scenes ---------------- */}
+        {features.scenes && (
+          <Section title="Scènes">
+            <div className="-m-4">
+              <ScenesPanel />
+            </div>
+          </Section>
+        )}
+
         <AssistantSettings settings={s} onChange={(llm) => set({ llm })} />
 
         {/* ---------------- voice ---------------- */}

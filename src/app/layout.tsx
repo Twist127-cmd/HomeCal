@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AppProvider } from "@/components/app/AppProvider";
 import { ServiceWorker } from "@/components/app/ServiceWorker";
+import { MusicContextProvider } from "@/components/music/MusicContext";
+import { SceneProvider } from "@/components/scenes/SceneContext";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -48,7 +50,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="h-full">
-        <AppProvider>{children}</AppProvider>
+        <AppProvider>
+          <MusicContextProvider>
+            <SceneProvider>{children}</SceneProvider>
+          </MusicContextProvider>
+        </AppProvider>
         <ServiceWorker />
       </body>
     </html>

@@ -1,7 +1,10 @@
 "use client";
 
-import { Car, MapPin } from "lucide-react";
+import { Car, MapPin, Pause, Play, SkipForward, Timer as TimerIcon } from "lucide-react";
 import { useApp } from "@/components/app/AppProvider";
+import { useMusic } from "@/components/music/MusicContext";
+import { useNow } from "@/hooks/useNow";
+import { formatRemaining, remainingMs } from "@/lib/timers";
 import { AvatarStack } from "@/components/ui/primitives";
 import { useForecast } from "@/hooks/useWeather";
 import { useTravel } from "@/hooks/useTravel";
@@ -45,6 +48,7 @@ export function AmbientScreen({ now, night, onWake }: { now: Date; night: boolea
               </span>
             </div>
           )}
+          <AmbientExtras />
         </div>
 
         {!night && (
@@ -70,6 +74,46 @@ export function AmbientScreen({ now, night, onWake }: { now: Date; night: boolea
         )}
       </div>
       <p className="mt-8 text-center text-sm text-muted">Touchez l&apos;écran pour revenir au calendrier</p>
+    </div>
+  );
+}
+
+/** Secondary info: running timers and the music being played (controls don't wake the screen). */
+function AmbientExtras() {
+  const { timers } = useApp();
+  const music = useMusic();
+  const tick = useNow(1000).getTime();
+  const active = timers.filter((t) => t.status === "running" || t.status === "paused");
+  const p = music.connected ? music.playback : null;
+  if (!active.length && !p?.item) return null;
+  return (
+    <div className="mt-8 flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
+      {active.map((t) => {
+        const left = remainingMs(t, tick);
+        return (
+          <div key={t.id} className={`flex items-center gap-3 text-2xl ${left < 60000 && t.status === "running" ? "animate-pulse font-semibold text-warn" : "text-muted"}`}>
+            <TimerIcon size={26} /> {t.label} <span className="tabular font-semibold text-text">{formatRemaining(left)}</span>
+          </div>
+        );
+      })}
+      {p?.item && (
+        <div className="flex max-w-md items-center gap-3 rounded-2xl bg-surface/70 p-2 pr-3">
+          {p.item.image && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={p.item.image} alt="" className="h-12 w-12 rounded-lg object-cover" />
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="truncate font-medium">{p.item.name}</div>
+            <div className="truncate text-sm text-muted">{p.item.subtitle}</div>
+          </div>
+          <button onClick={music.toggle} className="flex h-11 w-11 items-center justify-center rounded-full bg-text text-bg" aria-label={p.isPlaying ? "Pause" : "Lecture"}>
+            {p.isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
+          </button>
+          <button onClick={music.next} className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-surface-2" aria-label="Suivant">
+            <SkipForward size={18} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

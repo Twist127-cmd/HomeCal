@@ -4,13 +4,18 @@ import { onAuthStateChanged, type User } from "firebase/auth";
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { auth, firebaseConfigured, firestore } from "@/lib/firebase/client";
 import {
+  clearSpotifyConnection,
   createReminder as createReminderDoc,
   deleteReminder as deleteReminderDoc,
+  saveSpotifyConnection,
   subscribeCollection,
   subscribeHousehold,
   subscribeUser,
+  updateSpotifyCipher,
+  type UserDoc,
 } from "@/lib/data/household";
-import type { AssistantMessage, CalendarEvent, FavoritePlace, Household, Profile, Reminder } from "@/lib/types";
+import type { AssistantMessage, CalendarEvent, FavoritePlace, Household, Profile, Reminder, Scene, ShoppingItem, Timer } from "@/lib/types";
+import { SpotifyProvider, type MusicProvider } from "@/providers/music";
 import { createCalendarProviders, type LocalCalendarProvider } from "@/providers/calendar";
 import { HttpGeocodingProvider } from "@/providers/geocoding/GeocodingProvider";
 import { createLLMProvider, type LLMProvider } from "@/providers/llm";
@@ -41,6 +46,12 @@ export interface AppState {
   events: CalendarEvent[];
   reminders: Reminder[];
   history: AssistantMessage[];
+  timers: Timer[];
+  shopping: ShoppingItem[];
+  scenes: Scene[];
+  /** Spotify account info when connected */
+  spotify: UserDoc["spotify"] | null;
+  music: MusicProvider | null;
   myProfileId?: string;
   homePlace?: FavoritePlace;
   calendar: LocalCalendarProvider | null;
@@ -64,15 +75,20 @@ export function useApp(): AppState {
 export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
-  const [userDoc, setUserDoc] = useState<{ householdId?: string; profileId?: string } | null | undefined>(undefined);
+  const [userDoc, setUserDoc] = useState<UserDoc | null | undefined>(undefined);
   const [household, setHousehold] = useState<Household | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [places, setPlaces] = useState<FavoritePlace[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [history, setHistory] = useState<AssistantMessage[]>([]);
+  const [timers, setTimers] = useState<Timer[]>([]);
+  const [shopping, setShopping] = useState<ShoppingItem[]>([]);
+  const [scenes, setScenes] = useState<Scene[]>([]);
   const [error, setError] = useState<string | undefined>();
   const eventsRef = useRef<CalendarEvent[]>([]);
+  // holder read by the Spotify provider callbacks (latest encrypted token)
+  const [cipherHolder] = useState(() => ({ value: undefined as string | undefined }));
 
   // auth
   useEffect(() => {
@@ -90,7 +106,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // user doc → household id
   useEffect(() => {
     if (!user) return;
-    return subscribeUser(firestore(), user.uid, (u) => setUserDoc(u));
+    return subscribeUser(firestore(), user.uid, (u) => {
+      cipherHolder.value = u?.spotify?.cipher;
+      setUserDoc(u);
+    });
+  }, [user, cipherHolder]);
+
+  // Spotify OAuth return: the encrypted refresh token arrives in the URL fragment
+  useEffect(() => {
+    if (!user || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get("spotify");
+    if (!status) return;
+    const hash = new URLSearchParams(window.location.hash.slice(1));
+    const cipher = hash.get("spotify");
+    window.history.replaceState(null, "", window.location.pathname); // never keep the blob in the URL/history
+    if (status === "connected" && cipher) {
+      const db = firestore();
+      saveSpotifyConnection(db, user.uid, { cipher, connectedAt: new Date().toISOString() })
+        .then(async () => {
+          toast({ text: "Spotify connecté ✓", tone: "success" });
+        })
+        .catch((e) => toast({ text: `Spotify : ${(e as Error).message}`, tone: "error" }));
+    } else if (status === "error") {
+      toast({ text: `Connexion Spotify impossible (${params.get("reason") ?? "erreur"})`, tone: "error" });
+    }
   }, [user]);
 
   const householdId = userDoc?.householdId ?? null;
@@ -122,6 +162,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         (h) => setHistory([...h].sort((a, b) => a.createdAt.localeCompare(b.createdAt)).slice(-50)),
         onErr,
       ),
+      subscribeCollection<Timer>(db, householdId, "timers", setTimers, onErr),
+      subscribeCollection<ShoppingItem>(db, householdId, "shoppingItems", (s) => setShopping([...s].sort((a, b) => a.createdAt.localeCompare(b.createdAt))), onErr),
+      subscribeCollection<Scene>(db, householdId, "scenes", (s) => setScenes([...s].sort((a, b) => a.order - b.order)), onErr),
     ];
     return () => unsubs.forEach((u) => u());
   }, [householdId]);
@@ -138,6 +181,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     () => (llmSettings ? createLLMProvider(llmSettings, () => auth().currentUser?.getIdToken() ?? Promise.resolve(null)) : null),
     [llmSettings],
   );
+
+  const uid = user?.uid;
+  const music = useMemo<MusicProvider | null>(() => {
+    if (!uid) return null;
+    const db = firestore();
+    return new SpotifyProvider({
+      getIdToken: () => auth().currentUser?.getIdToken() ?? Promise.resolve(null),
+      getCipher: () => cipherHolder.value,
+      onCipherRotated: (cipher) => {
+        updateSpotifyCipher(db, uid, cipher).catch(() => {});
+      },
+      onDisconnect: () => clearSpotifyConnection(db, uid),
+    });
+  }, [uid, cipherHolder]);
 
   const myProfileId = useMemo(() => {
     if (userDoc?.profileId && profiles.some((p) => p.id === userDoc.profileId)) return userDoc.profileId;
@@ -169,6 +226,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     events,
     reminders,
     history,
+    timers,
+    shopping,
+    scenes,
+    spotify: userDoc?.spotify ?? null,
+    music,
     myProfileId,
     homePlace,
     calendar,

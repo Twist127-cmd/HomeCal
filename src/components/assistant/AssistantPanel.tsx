@@ -4,7 +4,10 @@ import clsx from "clsx";
 import { Mic, MicOff, Send, Sparkles, Trash2, Undo2, Volume2, VolumeX, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { handleUtterance, isQuestion, type AgentResult, type PendingQuestion } from "@/assistant/agent";
-import { ToolExecutor } from "@/assistant/executor";
+import { ToolExecutor, type ToolContext } from "@/assistant/executor";
+import { useScenes } from "@/components/scenes/SceneContext";
+import { useModuleStores } from "@/hooks/useModules";
+import { features } from "@/lib/features";
 import { buildSystemPrompt } from "@/assistant/prompt";
 import { useApp } from "@/components/app/AppProvider";
 import { Button, Spinner } from "@/components/ui/primitives";
@@ -27,10 +30,11 @@ interface LocalMessage {
 
 const SUGGESTIONS = [
   "Qu'est-ce qu'on a demain ?",
-  "Quand sommes-nous libres samedi ?",
-  "Ajoute dentiste jeudi à 16h",
-  "Va-t-il pleuvoir ce week-end ?",
-  "À quelle heure dois-je partir pour mon prochain rendez-vous ?",
+  "Minuteur 10 minutes pour les pâtes",
+  "Ajoute du lait et des œufs aux courses",
+  "Mets ma playlist Chill",
+  "Quand dois-je partir ?",
+  "Mode cuisine",
 ];
 
 export function AssistantPanel({
@@ -59,6 +63,14 @@ export function AssistantPanel({
   const handledInitial = useRef<string | null>(null);
   const pendingRef = useRef<PendingQuestion | null>(null);
   const listenRef = useRef<() => void>(() => {});
+  const stores = useModuleStores();
+  const scenes = useScenes();
+  const timersRef = useRef(app.timers);
+  const shoppingRef = useRef(app.shopping);
+  useEffect(() => {
+    timersRef.current = app.timers;
+    shoppingRef.current = app.shopping;
+  }, [app.timers, app.shopping]);
 
   // LLM health check when opening
   useEffect(() => {
@@ -96,8 +108,18 @@ export function AssistantPanel({
   const send = useCallback(
     async (text: string, fromVoice = false) => {
       const t = text.trim();
-      const ctx = app.toolContext();
-      if (!t || !ctx || !householdId || !household) return;
+      const base = app.toolContext();
+      if (!t || !base || !householdId || !household) return;
+      // V1.5 modules available to the assistant (timers, shopping list, music, scenes, navigation)
+      const ctx: ToolContext = {
+        ...base,
+        timers: stores && features.timers ? { list: () => timersRef.current, create: stores.timers.add, update: stores.timers.update, remove: stores.timers.remove } : undefined,
+        shopping:
+          stores && features.shopping ? { list: () => shoppingRef.current, add: stores.shopping.add, update: stores.shopping.update, remove: stores.shopping.remove } : undefined,
+        music: features.spotify ? app.music : null,
+        scenes: features.scenes ? { list: () => scenes.scenes, active: () => scenes.active, activate: scenes.activate, exit: scenes.exit } : undefined,
+        navigation: { app: () => household.settings.navigationApp ?? "ask", open: (url) => window.open(url, "_blank", "noopener") },
+      };
       tts.stop();
       const db = firestore();
       const userMsg: LocalMessage = { id: `u${Date.now()}`, role: "user", text: t };
@@ -126,6 +148,7 @@ export function AssistantPanel({
           places,
           currentProfileId: myProfileId,
           pending: pendingRef.current,
+          scenesForParsing: scenes.scenes,
           signal: abortRef.current.signal,
           onStep: setStep,
         });
@@ -166,7 +189,7 @@ export function AssistantPanel({
         toolCalls: result.actions.map((a) => ({ name: a.name, ok: a.result.ok })),
       }).catch(() => {});
     },
-    [app, householdId, household, profiles, places, myProfileId, history, llm, health, muted, speak, tts],
+    [app, householdId, household, profiles, places, myProfileId, history, llm, health, muted, speak, tts, stores, scenes],
   );
 
   const listen = useCallback(() => {
@@ -220,7 +243,7 @@ export function AssistantPanel({
   const messages = [...persisted, ...local];
 
   return (
-    <div className="fixed inset-0 z-40 flex justify-end">
+    <div className="fixed inset-0 z-[56] flex justify-end">
       <div className="absolute inset-0 animate-fade-in bg-black/30" onClick={onClose} />
       <aside className="relative flex h-full w-full max-w-md animate-slide-left flex-col bg-surface shadow-pop">
         <header className="safe-top flex items-center gap-2 border-b border-border px-4 pb-3">

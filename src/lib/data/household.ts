@@ -4,6 +4,7 @@ import {
   arrayUnion,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   onSnapshot,
@@ -24,7 +25,16 @@ import {
   type Reminder,
 } from "../types";
 
-export type SubCollection = "profiles" | "places" | "reminders" | "assistantHistory" | "integrations" | "events";
+export type SubCollection =
+  | "profiles"
+  | "places"
+  | "reminders"
+  | "assistantHistory"
+  | "integrations"
+  | "events"
+  | "timers"
+  | "shoppingItems"
+  | "scenes";
 
 const sub = (db: Firestore, hid: string, name: SubCollection) => collection(db, "households", hid, name);
 
@@ -42,6 +52,8 @@ export function withDefaults(h: Partial<Household> & { id: string }): Household 
       nightMode: { ...DEFAULT_SETTINGS.nightMode, ...s.nightMode },
       llm: { ...DEFAULT_SETTINGS.llm, ...s.llm },
       voice: { ...DEFAULT_SETTINGS.voice, ...s.voice },
+      timers: { ...DEFAULT_SETTINGS.timers, ...s.timers },
+      shopping: { ...DEFAULT_SETTINGS.shopping, ...s.shopping },
     },
   } as Household;
 }
@@ -182,8 +194,27 @@ export async function setMyProfile(db: Firestore, uid: string, profileId: string
   await setDoc(doc(db, "users", uid), { profileId }, { merge: true });
 }
 
-export function subscribeUser(db: Firestore, uid: string, cb: (u: { householdId?: string; profileId?: string } | null) => void) {
-  return onSnapshot(doc(db, "users", uid), (s) => cb(s.exists() ? (s.data() as { householdId?: string; profileId?: string }) : null));
+export interface UserDoc {
+  householdId?: string;
+  profileId?: string;
+  /** Spotify connection — `cipher` is the refresh token encrypted by the server (unreadable client-side) */
+  spotify?: { cipher: string; name?: string; product?: string; connectedAt?: string };
+}
+
+export function subscribeUser(db: Firestore, uid: string, cb: (u: UserDoc | null) => void) {
+  return onSnapshot(doc(db, "users", uid), (s) => cb(s.exists() ? (s.data() as UserDoc) : null));
+}
+
+export async function saveSpotifyConnection(db: Firestore, uid: string, spotify: NonNullable<UserDoc["spotify"]>) {
+  await setDoc(doc(db, "users", uid), { spotify: stripUndefined(spotify) }, { merge: true });
+}
+
+export async function updateSpotifyCipher(db: Firestore, uid: string, cipher: string) {
+  await updateDoc(doc(db, "users", uid), { "spotify.cipher": cipher });
+}
+
+export async function clearSpotifyConnection(db: Firestore, uid: string) {
+  await updateDoc(doc(db, "users", uid), { spotify: deleteField() });
 }
 
 // ------------------------------------------------------------------ subscriptions

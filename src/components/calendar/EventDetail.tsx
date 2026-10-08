@@ -2,6 +2,7 @@
 
 import { AlertTriangle, Bell, Car, Clock, ExternalLink, MapPin, Pencil, Repeat, Trash2, Umbrella, Wind } from "lucide-react";
 import { useApp } from "@/components/app/AppProvider";
+import { RouteButton } from "@/components/navigation/Departure";
 import { Avatar, Button, Sheet } from "@/components/ui/primitives";
 import { toast } from "@/components/ui/toast";
 import { useTravel } from "@/hooks/useTravel";
@@ -148,6 +149,14 @@ export function EventDetail({
                   {" · "}marge {travel.marginMin} min
                   {travel.route.source === "estimate" && " · estimation"}
                 </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <RouteButton location={e.location!} mode={travel.route.mode} label={travel.departAt.getTime() - now.getTime() < 30 * 60000 ? "Pars maintenant" : "Itinéraire"} />
+                </div>
+              </div>
+            )}
+            {!travel && e.location?.lat !== undefined && forecastable && (
+              <div className="rounded-2xl bg-surface-2 p-4">
+                <RouteButton location={e.location} />
               </div>
             )}
             {w && weather && (

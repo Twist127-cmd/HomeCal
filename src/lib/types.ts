@@ -30,6 +30,69 @@ export interface HouseholdSettings {
   /** auto = try the /api/llm proxy, then the browser → Ollama direct connection */
   llm: { mode: LLMMode; baseUrl: string; model: string };
   voice: { lang: string; autoSpeak: boolean };
+  /** Preferred navigation app for "Pars maintenant" */
+  navigationApp: NavigationApp;
+  timers: { sound: boolean; voice: boolean; notifications: boolean };
+  shopping: { hideChecked: boolean };
+}
+
+export type NavigationApp = "waze" | "google" | "apple" | "ask";
+
+// ------------------------------------------------------------------ V1.5 modules
+
+export type TimerStatus = "running" | "paused" | "done" | "cancelled";
+
+export interface Timer {
+  id: string;
+  label: string;
+  /** Total duration in ms */
+  duration: number;
+  createdAt: string;
+  /** Source of truth while running (ISO) */
+  expiresAt: string;
+  status: TimerStatus;
+  /** Remaining ms when paused */
+  remainingMs?: number;
+  createdBy?: string;
+}
+
+export interface ShoppingItem {
+  id: string;
+  name: string;
+  quantity?: string;
+  checked: boolean;
+  createdAt: string;
+  createdBy?: string;
+  checkedAt?: string;
+}
+
+export type SceneWidget =
+  | "clock"
+  | "weather"
+  | "agenda"
+  | "nextDeparture"
+  | "music"
+  | "timers"
+  | "shopping"
+  | "tomorrow"
+  | "conflicts";
+
+export interface Scene {
+  id: string;
+  name: string;
+  icon: string;
+  /** Widgets shown, in order */
+  widgets: SceneWidget[];
+  /** Playlist started when the scene is activated (optional) */
+  playlist?: { uri: string; name: string };
+  autoPlay: boolean;
+  /** Automatic activation window (optional) */
+  schedule?: { enabled: boolean; start: string; end: string };
+  /** Dim the screen (evening) */
+  dim: boolean;
+  /** Large touch controls (kitchen) */
+  large: boolean;
+  order: number;
 }
 
 export interface Household {
@@ -185,4 +248,52 @@ export const DEFAULT_SETTINGS: HouseholdSettings = {
   dayEndHour: 23,
   llm: { mode: "auto", baseUrl: "http://localhost:11434", model: "qwen3:4b-instruct" },
   voice: { lang: "fr-FR", autoSpeak: true },
+  navigationApp: "ask",
+  timers: { sound: true, voice: true, notifications: true },
+  shopping: { hideChecked: false },
 };
+
+export const SCENE_WIDGETS: { id: SceneWidget; label: string; icon: string }[] = [
+  { id: "clock", label: "Heure", icon: "🕐" },
+  { id: "weather", label: "Météo", icon: "🌤️" },
+  { id: "agenda", label: "Programme du jour", icon: "📅" },
+  { id: "nextDeparture", label: "Prochain départ", icon: "🚗" },
+  { id: "music", label: "Musique", icon: "🎵" },
+  { id: "timers", label: "Minuteurs", icon: "⏱️" },
+  { id: "shopping", label: "Courses", icon: "🛒" },
+  { id: "tomorrow", label: "Demain", icon: "🌙" },
+  { id: "conflicts", label: "Conflits", icon: "⚠️" },
+];
+
+/** Default scenes created the first time (fully editable / deletable afterwards). */
+export const DEFAULT_SCENES: Omit<Scene, "id">[] = [
+  {
+    name: "Matin",
+    icon: "☀️",
+    widgets: ["clock", "weather", "agenda", "nextDeparture", "conflicts", "music"],
+    autoPlay: false,
+    schedule: { enabled: false, start: "06:30", end: "09:00" },
+    dim: false,
+    large: false,
+    order: 0,
+  },
+  {
+    name: "Cuisine",
+    icon: "🍳",
+    widgets: ["music", "timers", "shopping", "agenda"],
+    autoPlay: false,
+    dim: false,
+    large: true,
+    order: 1,
+  },
+  {
+    name: "Soir",
+    icon: "🌙",
+    widgets: ["clock", "tomorrow", "nextDeparture", "music"],
+    autoPlay: false,
+    schedule: { enabled: false, start: "20:00", end: "23:00" },
+    dim: true,
+    large: false,
+    order: 2,
+  },
+];
