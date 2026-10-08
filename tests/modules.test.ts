@@ -138,7 +138,7 @@ describe("voice commands without LLM", () => {
     expect(r.text).toBe("✓ Minuteur « œufs » lancé pour 8 min.");
     expect(s.timers).toHaveLength(1);
     expect(new Date(s.timers[0].expiresAt).getTime()).toBe(now.getTime() + 8 * 60000);
-    expect((await s.say("Combien de temps reste-t-il sur le minuteur ?")).text).toBe("œufs : 08:00.");
+    expect((await s.say("Combien de temps reste-t-il sur le minuteur ?")).text).toBe("Il reste 08:00 pour « œufs ».");
     await s.say("Ajoute 2 minutes au minuteur");
     expect(s.timers[0].duration).toBe(10 * 60000);
     const c = await s.say("Annule le minuteur des œufs");

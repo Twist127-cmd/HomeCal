@@ -287,12 +287,33 @@ describe("runAgent", () => {
       },
     };
     const r = await runAgent({ input: "Dentiste jeudi 16h", history: [], systemPrompt: "sys", llm, executor: ex });
-    expect(r.text).toBe("C'est noté : dentiste jeudi à 16 heures.");
+    // V2: a successful action is confirmed deterministically — no 2nd LLM call just to rephrase it
+    expect(r.text).toBe("✓ Créé « Dentiste ».");
     expect(r.changed).toBe(true);
     expect(cal.events).toHaveLength(1);
-    // the tool result was sent back to the model
-    const last = seen[1].messages.at(-1)!;
-    expect(last.role).toBe("tool");
+    expect(seen).toHaveLength(1);
+  });
+
+  it("read requests still let the model summarise tool results", async () => {
+    const cal = new MemoryCalendarProvider();
+    const ex = new ToolExecutor(context(cal));
+    const script: ChatResponse[] = [
+      { content: "", toolCalls: [{ name: "getEvents", arguments: { from: "2026-10-01", to: "2026-10-02" } }] },
+      { content: "Rien de prévu ce jour-là.", toolCalls: [] },
+    ];
+    const seen: ChatRequest[] = [];
+    const llm: LLMProvider = {
+      id: "ollama",
+      model: "fake",
+      health: async () => ({ ok: true }),
+      chat: async (req) => {
+        seen.push(structuredClone({ messages: req.messages }));
+        return script.shift()!;
+      },
+    };
+    const r = await runAgent({ input: "Qu'est-ce que j'ai le 1er octobre ?", history: [], systemPrompt: "sys", llm, executor: ex });
+    expect(r.text).toBe("Rien de prévu ce jour-là.");
+    expect(seen[1].messages.at(-1)!.role).toBe("tool");
   });
 
   it("does not apply the same modification twice", async () => {

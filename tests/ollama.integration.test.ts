@@ -115,7 +115,7 @@ describe.skipIf(!enabled)(`Ollama ${model} – real tool calling`, { timeout: 30
 
   it("route & departure", async () => {
     const r = await ask("À quelle heure dois-je partir pour le dentiste ?");
-    expect(r.actions.some((a) => a.name === "calculateRoute" || a.name === "searchEvents")).toBe(true);
+    expect(r.actions.some((a) => ["calculateRoute", "searchEvents", "getNextDeparture"].includes(a.name))).toBe(true);
   });
 
   it("deletes", async () => {

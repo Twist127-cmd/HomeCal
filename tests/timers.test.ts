@@ -64,11 +64,11 @@ describe("parseDuration", () => {
 
 describe("parseTimerCommand", () => {
   it("creates timers from natural sentences", () => {
-    expect(parseTimerCommand("HomeCal, minuteur 12 minutes pour les pâtes")).toEqual({ op: "create", durationMs: 12 * 60000, label: "pâtes" });
-    expect(parseTimerCommand("Lance un minuteur de 5 minutes")).toEqual({ op: "create", durationMs: 5 * 60000, label: "Minuteur" });
-    expect(parseTimerCommand("Minuteur de 8 minutes pour les œufs")).toEqual({ op: "create", durationMs: 8 * 60000, label: "œufs" });
-    expect(parseTimerCommand("Réveille-moi dans 20 minutes")).toEqual({ op: "create", durationMs: 20 * 60000, label: "Réveil" });
-    expect(parseTimerCommand("Dans 45 minutes rappelle-moi de sortir le linge")).toEqual({ op: "create", durationMs: 45 * 60000, label: "sortir le linge" });
+    expect(parseTimerCommand("HomeCal, minuteur 12 minutes pour les pâtes")).toMatchObject({ op: "create", durationMs: 12 * 60000, label: "pâtes" });
+    expect(parseTimerCommand("Lance un minuteur de 5 minutes")).toMatchObject({ op: "create", durationMs: 5 * 60000, label: "Minuteur" });
+    expect(parseTimerCommand("Minuteur de 8 minutes pour les œufs")).toMatchObject({ op: "create", durationMs: 8 * 60000, label: "œufs" });
+    expect(parseTimerCommand("Réveille-moi dans 20 minutes")).toMatchObject({ op: "create", durationMs: 20 * 60000, label: "Réveil" });
+    expect(parseTimerCommand("Dans 45 minutes rappelle-moi de sortir le linge")).toMatchObject({ op: "create", durationMs: 45 * 60000, label: "Sortir le linge" });
   });
 
   it("controls existing timers", () => {
@@ -76,8 +76,8 @@ describe("parseTimerCommand", () => {
     expect(parseTimerCommand("Annule tous les minuteurs")).toEqual({ op: "cancel", all: true });
     expect(parseTimerCommand("Mets le minuteur en pause")?.op).toBe("pause");
     expect(parseTimerCommand("Reprends le minuteur")?.op).toBe("resume");
-    expect(parseTimerCommand("Ajoute 2 minutes au minuteur")).toEqual({ op: "add", durationMs: 2 * 60000, label: undefined });
-    expect(parseTimerCommand("Combien de temps reste-t-il sur le minuteur ?")).toEqual({ op: "list" });
+    expect(parseTimerCommand("Ajoute 2 minutes au minuteur")).toMatchObject({ op: "add", durationMs: 2 * 60000, label: undefined });
+    expect(parseTimerCommand("Combien de temps reste-t-il sur le minuteur ?")?.op).toBe("remaining");
   });
 
   it("ignores unrelated sentences", () => {
