@@ -17,6 +17,8 @@ Calendrier familial tactile et intelligent — pensé pour un écran mural (Rasp
 - **PWA** (installable, cache hors ligne), **mode ambiant** (horloge plein écran) et **mode nuit**
 - Architecture **Google Calendar** prête mais désactivée (`NEXT_PUBLIC_GOOGLE_CALENDAR_ENABLED=false`)
 
+**V1.5** : Spotify Connect, actions contextuelles, minuteurs vocaux, « Pars maintenant » (Waze / Google Maps / Apple Plans), scènes personnalisables, liste de courses partagée — voir [V1.5](#v15--assistant-central-du-foyer).
+
 Coût de fonctionnement : **0 €/mois** (Firebase Spark, Vercel Hobby, Ollama local, Open-Meteo, OSRM/Photon gratuits).
 
 ## Stack
@@ -36,12 +38,16 @@ Coût de fonctionnement : **0 €/mois** (Firebase Spark, Vercel Hobby, Ollama l
 
 ```
 src/
-  app/                 pages (/, /settings), manifest, routes API (geocode, route, llm proxy)
-  assistant/           tools (définitions), executor (seul point d'écriture), agent (boucle tool-calling), hints, prompt
+  app/                 pages (/, /settings), manifest, routes API (geocode, route, llm proxy, spotify)
+  assistant/           tools (définitions), executor (seul point d'écriture), moduleTools, fastpaths, agent, hints, prompt
   components/          UI : calendrier, assistant, réglages, auth, primitives
-  hooks/               useNow, useIdle, useOccurrences, useWeather, useTravel…
+    music/ timers/ shopping/ scenes/ navigation/   modules V1.5
+  hooks/               useNow, useIdle, useOccurrences, useWeather, useTravel, useNextDeparture…
   lib/                 logique pure : dates, récurrence, conflits, disponibilités, départ, quick add, profils
+    timers.ts shopping.ts commands.ts contextual.ts navigation.ts            (V1.5)
+    server/            firebaseAuth.ts (vérif. jeton Firebase) · tokenVault.ts (chiffrement) · spotify.ts · llmAccess.ts
   providers/
+    music/             MusicProvider → SpotifyProvider (Deezer / Apple Music / YouTube Music possibles)
     calendar/          CalendarProvider → LocalCalendarProvider (actif) · GoogleCalendarProvider (inactif) · Memory
     llm/               LLMProvider → OllamaProvider · OpenAIProvider / AnthropicProvider (prévus)
     speech/ tts/       SpeechProvider · TTSProvider (Web Speech)
@@ -66,6 +72,10 @@ households/{hid}/events/{id}     title, start, end (ISO), allDay, profileIds, lo
 households/{hid}/places/{id}     lieux favoris (coordonnées)
 households/{hid}/reminders/{id}
 households/{hid}/assistantHistory/{id}
+households/{hid}/timers/{id}         label, duration, expiresAt, status        (V1.5)
+households/{hid}/shoppingItems/{id}  name, quantity, checked, createdBy        (V1.5)
+households/{hid}/scenes/{id}         name, icon, widgets[], playlist, schedule (V1.5)
+users/{uid}.spotify                  cipher (jeton chiffré, illisible côté client), name, product
 invites/{code}                   → householdId
 ```
 
@@ -119,6 +129,90 @@ setx OLLAMA_ORIGINS "http://localhost:3000,https://*.vercel.app"
 
 Optimisation GPU 4 Go recommandée : `OLLAMA_FLASH_ATTENTION=1`, `OLLAMA_KV_CACHE_TYPE=q8_0`.
 
+### PC de référence (tous les appareils)
+
+En production, `/api/llm` passe par un **tunnel Tailscale Funnel** vers un seul PC qui exécute Ollama (`OLLAMA_TUNNEL_URL` + `OLLAMA_TUNNEL_TOKEN`), réservé aux membres connectés du foyer. Installation, changement de PC et dépannage : [`ollama-host/README.md`](ollama-host/README.md).
+
+## V1.5 — assistant central du foyer
+
+Le calendrier reste la colonne vertébrale ; les modules s'ajoutent sans le surcharger.
+
+- **Mobile** : barre du bas *Aujourd'hui · Calendrier · + · Musique · Plus*.
+- **Tablette / PC** : barre d'outils compacte (🎵 ⏱ 🛒 ✨) à côté de l'ajout rapide, panneaux ancrés à droite sur grand écran.
+
+### Spotify Connect
+
+HomeCal est une **télécommande Spotify** : la lecture se fait sur vos appareils Spotify (téléphone, ordinateur, enceinte connectée), HomeCal affiche ce qui joue et la pilote — mini-player, vue Musique (lecture, volume, appareils, playlists, récents, recherche, « Ouvrir Spotify »), affichage dans le mode ambiant et les scènes.
+
+- **Spotify Premium** est requis pour contrôler la lecture (exigence de l'API Spotify).
+- Sur iPhone, HomeCal ne joue pas la musique lui-même : il pilote un appareil Spotify.
+
+**Sécurité des jetons** : le *client secret* reste sur Vercel. Après le consentement, le *refresh token* est **chiffré côté serveur** (AES-256-GCM, clé `HOMECAL_TOKEN_KEY`, lié à l'uid Firebase) et stocké sous forme de blob illisible dans `users/{uid}.spotify`. Toutes les commandes passent par `/api/spotify`, qui vérifie le jeton Firebase de l'utilisateur, déchiffre et n'autorise qu'une liste fermée d'opérations. Une seule connexion suffit pour tous les appareils de l'utilisateur.
+
+**Créer l'application Spotify** (une fois) :
+
+1. https://developer.spotify.com/dashboard → **Create app**.
+2. *Redirect URI* : exactement `https://homecal.vercel.app/api/spotify/callback`.
+3. Cocher **Web API**, enregistrer.
+4. Copier le **Client ID** et le **Client Secret** (*Settings*).
+5. *User Management* : ajouter l'e-mail Spotify de chaque membre du foyer (les applications en mode développement sont limitées aux utilisateurs autorisés).
+
+**Variables Vercel** :
+
+| Variable | Valeur |
+|---|---|
+| `SPOTIFY_CLIENT_ID` | Client ID |
+| `SPOTIFY_CLIENT_SECRET` | Client Secret (*sensitive*) |
+| `SPOTIFY_REDIRECT_URI` | `https://homecal.vercel.app/api/spotify/callback` |
+| `HOMECAL_TOKEN_KEY` | 32 octets aléatoires en base64 (*sensitive*) — ne pas changer sans reconnecter Spotify |
+| `NEXT_PUBLIC_SPOTIFY_ENABLED` | `true` |
+
+```powershell
+# générer HOMECAL_TOKEN_KEY
+[Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }) -as [byte[]])
+```
+
+### Actions contextuelles
+
+2 à 4 boutons choisis par des **règles déterministes** (sans LLM) selon l'heure, le prochain rendez-vous, le trajet, les profils sélectionnés, la musique, les minuteurs et les courses : *Ma journée*, *Itinéraire*, *Me rappeler*, *Trouver un créneau*, *Minuteur*, *Courses*, *Demain*, *Relax*, scène suggérée…
+
+### Minuteurs
+
+Plusieurs minuteurs simultanés, partagés dans le foyer. `expiresAt` est la source de vérité (pas de `setInterval`) : un minuteur survit à un rechargement, un changement de page ou un écran verrouillé. Pause, reprise, +1 min, annulation ; à l'échéance : alarme plein écran, sonnerie, voix, notification, *+5 min*.
+
+> « Minuteur 12 minutes pour les pâtes » · « Réveille-moi dans 20 minutes » · « Dans 45 minutes rappelle-moi de sortir le linge » · « Annule le minuteur des pâtes »
+
+### « Pars maintenant »
+
+Pastille de départ 🟢 *Départ conseillé dans 24 min* → 🟠 *Pars dans 5 min* → 🔴 *Il est temps de partir* → ⚠️ *Tu devrais déjà être parti depuis 7 min*. Un appui ouvre l'itinéraire dans **Waze**, **Google Maps** ou **Apple Plans** (liens profonds, coordonnées GPS en priorité). Application préférée : *Réglages → Trajets* (ou « Demander à chaque fois »).
+
+### Scènes
+
+Entièrement personnalisables : **créer, modifier, supprimer**. Matin, Cuisine et Soir sont créées par défaut comme modèles. Chaque scène définit :
+
+- les **éléments affichés** et leur ordre : heure, météo, programme du jour, prochain départ, musique, minuteurs, courses, demain, conflits ;
+- une **playlist** (lancement automatique optionnel) ;
+- une **activation automatique** sur une plage horaire (tablette / écran mural uniquement, jamais sur téléphone) ;
+- **luminosité réduite** et **grands boutons** (mains occupées).
+
+La scène active est propre à chaque appareil. Activation au toucher (*Scènes*) ou à la voix : « Mode cuisine », « Passe en mode soirée », « Quitte le mode ».
+
+### Liste de courses partagée
+
+Stockée dans `households/{hid}/shoppingItems`, synchronisée entre les membres, utilisable hors ligne. Cocher, masquer les articles achetés, vider, annuler.
+
+> « Ajoute du lait et six œufs aux courses » · « Enlève le café de la liste » · « Qu'est-ce qu'il reste à acheter ? »
+
+### Assistant
+
+Nouveaux outils typés (toujours via `ToolExecutor`, jamais d'écriture directe du LLM) : `createTimer`, `listTimers`, `cancelTimer`, `pauseTimer`, `resumeTimer`, `addTimeToTimer` · `addShoppingItem`, `removeShoppingItem`, `completeShoppingItem`, `uncompleteShoppingItem`, `getShoppingList`, `clearCompletedShoppingItems` · `playMusic`, `playPlaylist`, `pauseMusic`, `resumeMusic`, `nextTrack`, `previousTrack`, `setMusicVolume`, `changeMusicDevice`, `searchMusic`, `getCurrentTrack` · `activateScene`, `exitScene` · `getNextDeparture`, `openNavigation`.
+
+Les commandes simples (minuteurs, courses, scènes, musique, départ) sont reconnues **sans le LLM** : réponse instantanée, même si Ollama est indisponible. Seuls les groupes d'outils pertinents sont envoyés au modèle pour garder un prompt court. Quand plusieurs playlists correspondent, HomeCal demande laquelle.
+
+### Feature flags
+
+`NEXT_PUBLIC_SPOTIFY_ENABLED`, `NEXT_PUBLIC_TIMERS_ENABLED`, `NEXT_PUBLIC_SHOPPING_ENABLED`, `NEXT_PUBLIC_SCENES_ENABLED` (vrais par défaut) : une fonction peut être masquée sans supprimer son code.
+
 ## Raspberry Pi (kiosk)
 
 ```bash
@@ -140,3 +234,5 @@ Activation future : créer un client OAuth Web, activer l'API Google Calendar, r
 
 - `.env.local` est ignoré par Git ; aucun secret n'est écrit en dur.
 - Les clés `NEXT_PUBLIC_FIREBASE_*` sont publiques par conception ; l'accès aux données est protégé par `firestore.rules` (membres du foyer uniquement).
+- Secrets Spotify et clé de chiffrement uniquement côté serveur (Vercel) ; aucun refresh token en clair dans Firestore.
+- Routes `/api/llm` et `/api/spotify` : jeton Firebase vérifié côté serveur avant toute action.
