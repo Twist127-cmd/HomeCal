@@ -135,7 +135,7 @@ describe("voice commands without LLM", () => {
   it("timers: create, list, +time, cancel, undo", async () => {
     const s = setup();
     const r = await s.say("Minuteur 8 minutes pour les œufs");
-    expect(r.text).toBe("Minuteur « œufs » lancé pour 8 min.");
+    expect(r.text).toBe("✓ Minuteur « œufs » lancé pour 8 min.");
     expect(s.timers).toHaveLength(1);
     expect(new Date(s.timers[0].expiresAt).getTime()).toBe(now.getTime() + 8 * 60000);
     expect((await s.say("Combien de temps reste-t-il sur le minuteur ?")).text).toBe("œufs : 08:00.");
@@ -154,7 +154,7 @@ describe("voice commands without LLM", () => {
       ["Lait", undefined],
       ["Œufs", "6"],
     ]);
-    expect(r.text).toBe("Lait, 6 œufs ajouté(s) aux courses.");
+    expect(r.text).toBe("✓ Lait et 6 œufs ajoutés aux courses.");
     await s.say("Ajoute du lait aux courses"); // duplicate ignored
     expect(s.shopping).toHaveLength(2);
     expect((await s.say("Qu'est-ce qu'il reste à acheter dans les courses ?")).text).toBe("Il reste 2 articles : lait et 6 œufs.");
@@ -166,7 +166,7 @@ describe("voice commands without LLM", () => {
 
   it("scenes: activate by voice and exit", async () => {
     const s = setup();
-    expect((await s.say("HomeCal, mode cuisine")).text).toBe("Mode Cuisine activé.");
+    expect((await s.say("HomeCal, mode cuisine")).text).toBe("✓ Mode Cuisine activé.");
     expect(s.activeScene?.name).toBe("Cuisine");
     await s.say("Quitte le mode cuisine");
     expect(s.activeScene).toBeNull();
@@ -193,7 +193,7 @@ describe("voice commands without LLM", () => {
 
     const q = await s.say("Mets ma playlist chill");
     expect(q.text).toContain("Lequel voulez-vous ?");
-    expect(q.pending?.kind).toBe("musicChoice");
+    expect(q.pending).toMatchObject({ domain: "music", kind: "choice" });
     await s.say("la deuxième", q.pending);
     expect(fm.log.at(-1)).toBe("playUri:spotify:playlist:chill2");
 

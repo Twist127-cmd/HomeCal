@@ -6,12 +6,14 @@ import { normalize } from "@/lib/profiles";
 import { expandEvents } from "@/lib/recurrence";
 import { describeList, findItem, splitItems } from "@/lib/shopping";
 import { addTime, findTimer, formatDuration, formatRemaining, newTimer, parseDuration, pauseTimer, remainingMs, resumeTimer } from "@/lib/timers";
-import type { NavigationApp, Scene, ShoppingItem, Timer } from "@/lib/types";
+import type { NavigationApp, Reminder, Scene, ShoppingItem, Timer } from "@/lib/types";
 import { findBestMatch, MusicError, type MusicItem, type MusicProvider } from "@/providers/music";
 import type { ToolContext, ToolResult } from "./executor";
 
 /** Optional V1.5 modules available to the assistant (UI passes them in the ToolContext). */
 export interface ModuleContext {
+  /** Standalone reminders of the household (for cancel / list) */
+  reminders?: () => Reminder[];
   timers?: {
     list(): Timer[];
     create(t: Omit<Timer, "id">): Promise<Timer>;
@@ -67,6 +69,8 @@ const MODULE_TOOLS = new Set([
   "exitScene",
   "getNextDeparture",
   "openNavigation",
+  "listReminders",
+  "cancelReminder",
 ]);
 
 export function isModuleTool(name: string) {
@@ -90,6 +94,7 @@ export async function runModuleTool(name: string, a: Record<string, unknown>, ct
     if (name.includes("Shopping")) return await shoppingTool(name, a, ctx);
     if (name.includes("Scene")) return sceneTool(name, a, ctx);
     if (name === "getNextDeparture" || name === "openNavigation") return await navigationTool(name, a, ctx);
+    if (name === "listReminders" || name === "cancelReminder") return await reminderTool(name, a, ctx);
     return await musicTool(name, a, ctx);
   } catch (e) {
     if (e instanceof MusicError) return fail(e.message);
@@ -184,7 +189,7 @@ async function shoppingTool(name: string, a: Record<string, unknown>, ctx: ToolC
         );
       }
       const label = parsed.map((p) => (p.quantity ? `${p.quantity} ${p.name.toLowerCase()}` : p.name.toLowerCase())).join(", ");
-      return ok({ added: created.map((c) => c.name) }, created.length ? `${capital(label)} ajouté(s) aux courses` : `${capital(label)} déjà sur la liste`, {
+      return ok({ added: created.map((c) => (c.quantity ? `${c.quantity} ${c.name}` : c.name)) }, created.length ? `${capital(label)} ajouté(s) aux courses` : `${capital(label)} déjà sur la liste`, {
         changed: created.length > 0,
         undo: async () => {
           await Promise.all(created.map((c) => s.remove(c.id)));
@@ -353,6 +358,34 @@ function sceneTool(name: string, a: Record<string, unknown>, ctx: ToolContext): 
     changed: true,
     undo: async () => (prev ? sc.activate(prev.id) : sc.exit()),
   });
+}
+
+// ------------------------------------------------------------------ reminders
+
+async function reminderTool(name: string, a: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
+  const now = ctx.now().getTime();
+  const upcoming = (ctx.reminders?.() ?? []).filter((r) => !r.done && new Date(r.at).getTime() > now - 60000).sort((x, y) => x.at.localeCompare(y.at));
+  const hhmm = (iso: string) => {
+    const d = new Date(iso);
+    return `${d.getHours()}h${String(d.getMinutes()).padStart(2, "0")}`.replace(/h00$/, "h");
+  };
+  if (name === "listReminders") {
+    return ok(
+      { reminders: upcoming.map((r) => ({ text: r.text, at: r.at })) },
+      upcoming.length ? upcoming.map((r) => `${r.text} à ${hhmm(r.at)}`).join(", ") : "Aucun rappel prévu",
+    );
+  }
+  const q = str(a.text) ?? str(a.query);
+  const target = q ? upcoming.find((r) => normalize(r.text).includes(normalize(q))) : upcoming.length === 1 ? upcoming[0] : a.latest === true ? upcoming[upcoming.length - 1] : undefined;
+  if (!target) {
+    if (!upcoming.length) return fail("Aucun rappel à annuler");
+    return { ok: false, data: { choices: upcoming.map((r) => r.text) }, summary: `Quel rappel ? ${upcoming.map((r) => r.text).join(", ")}` };
+  }
+  await ctx.deleteReminder(target.id);
+  const { id, createdAt, ...rest } = target;
+  void id;
+  void createdAt;
+  return ok({ cancelled: target.text }, `Rappel « ${target.text} » annulé`, { changed: true, undo: async () => void (await ctx.createReminder(rest)) });
 }
 
 // ------------------------------------------------------------------ navigation

@@ -177,7 +177,48 @@ export const NAVIGATION_TOOLS: ToolDefinition[] = [
   }),
 ];
 
-export const TOOLS: ToolDefinition[] = [...CALENDAR_TOOLS, ...TIMER_TOOLS, ...SHOPPING_TOOLS, ...MUSIC_TOOLS, ...SCENE_TOOLS, ...NAVIGATION_TOOLS];
+export const REMINDER_TOOLS: ToolDefinition[] = [
+  tool("listReminders", "Lister les rappels à venir.", {}),
+  tool("cancelReminder", "Annuler un rappel (par son texte, ou le dernier avec latest=true).", { text: { type: "string" }, latest: { type: "boolean" } }),
+];
+
+export const TOOLS: ToolDefinition[] = [...CALENDAR_TOOLS, ...TIMER_TOOLS, ...SHOPPING_TOOLS, ...MUSIC_TOOLS, ...SCENE_TOOLS, ...NAVIGATION_TOOLS, ...REMINDER_TOOLS];
+
+const pick = (...names: string[]) => TOOLS.filter((t) => names.includes(t.function.name));
+
+/**
+ * Tools exposed to the LLM for a given domain (from the router's best guess).
+ * Never send out-of-domain tools: shorter prompt = faster and more accurate.
+ */
+export function toolsForDomain(domain: string | undefined, input: string): ToolDefinition[] {
+  const n = input
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "");
+  switch (domain) {
+    case "weather":
+      return pick("getWeather", "searchEvents");
+    case "music":
+      return pick("searchMusic", "playMusic", "playPlaylist", "getCurrentTrack", "changeMusicDevice", "setMusicVolume");
+    case "timers":
+      return TIMER_TOOLS;
+    case "shopping":
+      return SHOPPING_TOOLS;
+    case "scenes":
+      return SCENE_TOOLS;
+    case "navigation":
+      return [...NAVIGATION_TOOLS, ...pick("calculateRoute", "searchEvents")];
+    case "reminders":
+      return [...pick("createReminder", "searchEvents"), ...REMINDER_TOOLS];
+    case "calendar":
+      if (/\b(libres?|disponibles?|dispo|creneau|moment)\b/.test(n)) return pick("getEvents", "findAvailability", "createEvent");
+      if (/\b(supprime|efface|annule|enleve|retire)\b/.test(n)) return pick("searchEvents", "getEvents", "deleteEvent");
+      if (/\b(decale|deplace|repousse|avance|reporte|modifie|change|renomme)\b/.test(n)) return pick("searchEvents", "getEvents", "moveEvent", "updateEvent");
+      if (/\b(ajoute|cree|planifie|programme|note|reserve)\b/.test(n)) return pick("createEvent", "findAvailability", "getEvents");
+      return pick("getEvents", "searchEvents", "findAvailability", "getWeather");
+  }
+  return selectTools(input);
+}
 export const TOOL_NAMES = TOOLS.map((t) => t.function.name);
 
 /**
