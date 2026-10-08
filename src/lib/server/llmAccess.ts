@@ -1,14 +1,12 @@
 import "server-only";
-import { createRemoteJWKSet, jwtVerify } from "jose";
+import { AuthError, householdOf, requireUser } from "./firebaseAuth";
 
 /**
  * Access control for the LLM proxy when it forwards to the remote Ollama tunnel.
  *
- *  1. The browser sends its Firebase ID token (Authorization: Bearer …).
- *  2. We verify the token signature against Google's public keys (no service account needed).
- *  3. The user must be allowed: e-mail in HOMECAL_ALLOWED_EMAILS, or member of a household
- *     listed in HOMECAL_ALLOWED_HOUSEHOLDS (read from Firestore with the user's own token,
- *     so the security rules apply). When neither list is set, any signed-in user who
+ *  1. The browser sends its Firebase ID token (Authorization: Bearer …), verified server-side.
+ *  2. The user must be allowed: e-mail in HOMECAL_ALLOWED_EMAILS, or member of a household
+ *     listed in HOMECAL_ALLOWED_HOUSEHOLDS. When neither list is set, any signed-in user who
  *     belongs to a household is accepted.
  */
 
@@ -31,57 +29,16 @@ export function ollamaTarget(): { base: string; headers: Record<string, string>;
   return { base: clean(process.env.OLLAMA_BASE_URL) || "http://localhost:11434", headers: {}, remote: false };
 }
 
-function projectId() {
-  return clean(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID) || clean(process.env.FIREBASE_ADMIN_PROJECT_ID);
-}
-
-// Google's public keys for Firebase ID tokens (cached by jose)
-const JWKS = createRemoteJWKSet(new URL("https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com"));
-
-/** Verify a Firebase ID token (signature, issuer, audience, expiry) — see Firebase "verify ID tokens using a third-party JWT library". */
-async function verifyIdToken(idToken: string): Promise<{ uid: string; email?: string }> {
-  const pid = projectId();
-  const { payload } = await jwtVerify(idToken, JWKS, {
-    issuer: `https://securetoken.google.com/${pid}`,
-    audience: pid,
-    algorithms: ["RS256"],
-  });
-  if (!payload.sub) throw new Error("no subject");
-  return { uid: payload.sub, email: typeof payload.email === "string" ? payload.email : undefined };
-}
-
-async function householdOf(uid: string, idToken: string): Promise<string | null> {
-  const url = `https://firestore.googleapis.com/v1/projects/${projectId()}/databases/(default)/documents/users/${encodeURIComponent(uid)}`;
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${idToken}` }, signal: AbortSignal.timeout(5000) });
-  if (!res.ok) return null;
-  const doc = (await res.json()) as { fields?: { householdId?: { stringValue?: string } } };
-  return doc.fields?.householdId?.stringValue ?? null;
-}
-
-export class AccessError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
+export { AuthError as AccessError };
 
 export async function assertLLMAccess(authorization: string | null): Promise<void> {
-  const idToken = authorization?.startsWith("Bearer ") ? authorization.slice(7) : "";
-  if (!idToken) throw new AccessError(401, "Connexion requise");
-  let decoded;
-  try {
-    decoded = await verifyIdToken(idToken);
-  } catch {
-    throw new AccessError(401, "Session invalide, reconnectez-vous");
-  }
+  const user = await requireUser(authorization);
   const emails = list(process.env.HOMECAL_ALLOWED_EMAILS);
-  if (decoded.email && emails.includes(decoded.email.toLowerCase())) return;
+  if (user.email && emails.includes(user.email.toLowerCase())) return;
 
   const households = list(process.env.HOMECAL_ALLOWED_HOUSEHOLDS);
-  const hid = await householdOf(decoded.uid, idToken);
-  if (!hid) throw new AccessError(403, "Aucun foyer associé à ce compte");
-  if (households.length && !households.includes(hid.toLowerCase())) throw new AccessError(403, "Ce foyer n'est pas autorisé à utiliser l'assistant");
-  if (!households.length && emails.length) throw new AccessError(403, "Compte non autorisé à utiliser l'assistant");
+  const hid = await householdOf(user);
+  if (!hid) throw new AuthError(403, "Aucun foyer associé à ce compte");
+  if (households.length && !households.includes(hid.toLowerCase())) throw new AuthError(403, "Ce foyer n'est pas autorisé à utiliser l'assistant");
+  if (!households.length && emails.length) throw new AuthError(403, "Compte non autorisé à utiliser l'assistant");
 }
