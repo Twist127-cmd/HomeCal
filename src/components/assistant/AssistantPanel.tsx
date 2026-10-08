@@ -3,7 +3,7 @@
 import clsx from "clsx";
 import { Mic, MicOff, Send, Sparkles, Trash2, Undo2, Volume2, VolumeX, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { handleUtterance, isQuestion, type AgentResult, type PendingQuestion } from "@/assistant/agent";
+import { handleUtterance, isQuestion, type AgentMetrics, type AgentResult, type PendingQuestion } from "@/assistant/agent";
 import { ToolExecutor, type ToolContext } from "@/assistant/executor";
 import { useScenes } from "@/components/scenes/SceneContext";
 import { useModuleStores } from "@/hooks/useModules";
@@ -26,6 +26,7 @@ interface LocalMessage {
   undo?: (() => Promise<void>)[];
   actions?: { name: string; ok: boolean; summary: string }[];
   pending?: boolean;
+  metrics?: AgentMetrics;
 }
 
 const SUGGESTIONS = [
@@ -62,6 +63,14 @@ export function AssistantPanel({
   const listRef = useRef<HTMLDivElement>(null);
   const handledInitial = useRef<string | null>(null);
   const pendingRef = useRef<PendingQuestion | null>(null);
+  const [debug] = useState(() => {
+    if (process.env.NEXT_PUBLIC_ASSISTANT_DEBUG === "true") return true;
+    try {
+      return typeof localStorage !== "undefined" && localStorage.getItem("homecal.debug") === "1";
+    } catch {
+      return false;
+    }
+  });
   const listenRef = useRef<() => void>(() => {});
   const stores = useModuleStores();
   const scenes = useScenes();
@@ -76,7 +85,11 @@ export function AssistantPanel({
   useEffect(() => {
     if (!open || !llm) return;
     let cancelled = false;
-    llm.health().then((h) => !cancelled && setHealth(h));
+    llm.health().then((h) => {
+      if (cancelled) return;
+      setHealth(h);
+      if (h.ok) llm.warm?.(); // load the model before the first question
+    });
     return () => {
       cancelled = true;
     };
@@ -167,6 +180,7 @@ export function AssistantPanel({
                 text: result.text,
                 pending: false,
                 undo: undo.length ? undo : undefined,
+                metrics: result.metrics,
                 actions: result.actions.map((a) => ({ name: a.name, ok: a.result.ok, summary: a.result.summary })),
               }
             : m,
@@ -308,11 +322,17 @@ export function AssistantPanel({
                 )}
               >
                 {m.pending ? (
-                  <span className="flex items-center gap-2 text-muted">
+                  // no loader for answers faster than 300 ms
+                  <span className="flex items-center gap-2 text-muted opacity-0 [animation-delay:300ms] [animation-fill-mode:forwards] animate-fade-in">
                     <Spinner size={14} /> {step}
                   </span>
                 ) : (
                   m.text
+                )}
+                {debug && m.metrics && (
+                  <div className="mt-1.5 font-mono text-[10px] leading-tight text-muted">
+                    {m.metrics.intent ?? "—"} · {m.metrics.confidence !== undefined ? `${Math.round(m.metrics.confidence * 100)} %` : "—"} · {m.metrics.fastPath ? "fast path" : "LLM"} · LLM×{m.metrics.llmCalls} · {m.metrics.totalMs} ms
+                  </div>
                 )}
                 {m.actions && m.actions.some((a) => a.name !== "getEvents" && a.name !== "searchEvents") && (
                   <div className="mt-2 space-y-0.5 border-t border-border/60 pt-2 text-xs text-muted">

@@ -150,7 +150,7 @@ export async function runAgent(opts: {
     const allOk = stepActions.length > 0 && stepActions.every((a) => a.result.ok);
     const changed = stepActions.some((a) => a.result.changed);
     const needsChoice = stepActions.some((a) => (a.result.data as { choices?: unknown } | undefined)?.choices);
-    if (intent !== "query" && allOk && changed && !needsChoice) {
+    if (allOk && changed && !needsChoice) {
       return { text: fallbackText(actions), actions, changed: true };
     }
   }
