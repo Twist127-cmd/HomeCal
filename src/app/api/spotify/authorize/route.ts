@@ -6,7 +6,14 @@ import { signState, vaultConfigured } from "@/lib/server/tokenVault";
 /** Returns the Spotify consent URL for the signed-in HomeCal user. */
 export async function POST(req: NextRequest) {
   if (!spotifyConfig.configured() || !vaultConfigured()) {
-    return NextResponse.json({ error: "NOT_CONFIGURED" }, { status: 503 });
+    // names only (never values) to help diagnose the configuration
+    const missing = [
+      !spotifyConfig.clientId() && "SPOTIFY_CLIENT_ID",
+      !spotifyConfig.clientSecret() && "SPOTIFY_CLIENT_SECRET",
+      !spotifyConfig.redirectUri() && "SPOTIFY_REDIRECT_URI",
+      !vaultConfigured() && "HOMECAL_TOKEN_KEY",
+    ].filter(Boolean);
+    return NextResponse.json({ error: "NOT_CONFIGURED", missing }, { status: 503 });
   }
   try {
     const user = await requireUser(req.headers.get("authorization"));
