@@ -19,9 +19,32 @@ export interface OllamaOptions {
  *  - direct: browser → http://localhost:11434 (requires OLLAMA_ORIGINS to allow the site origin; used on Vercel)
  *  - auto:   proxy first, then direct; the working route is remembered.
  */
+/** Keep the model loaded between commands (avoids multi-second cold starts). */
+const KEEP_ALIVE = "2h";
+
 export class OllamaProvider implements LLMProvider {
   readonly id = "ollama" as const;
   private resolved: "proxy" | "direct" | null = null;
+  private lastUse = 0;
+
+  /**
+   * Load the model in memory ahead of the first question (empty chat request).
+   * Cheap and idempotent; skipped when the model was used recently.
+   */
+  async warm(): Promise<void> {
+    if (Date.now() - this.lastUse < 15 * 60_000) return;
+    this.lastUse = Date.now();
+    try {
+      if (!this.resolved && !(await this.health()).ok) return;
+      await fetch(this.endpoint(this.resolved!), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(this.resolved === "proxy" ? await this.proxyHeaders() : {}) },
+        body: JSON.stringify({ model: this.opts.model, messages: [], keep_alive: KEEP_ALIVE, stream: false }),
+      });
+    } catch {
+      this.lastUse = 0;
+    }
+  }
 
   constructor(private readonly opts: OllamaOptions) {
     if (opts.mode !== "auto") this.resolved = opts.mode;
@@ -89,10 +112,11 @@ export class OllamaProvider implements LLMProvider {
       tools: req.tools,
       stream: false,
       think: false,
-      keep_alive: "30m",
+      keep_alive: KEEP_ALIVE,
       format: req.json ? "json" : undefined,
       // num_predict caps runaway generations (small models sometimes loop)
-      options: { temperature: req.temperature ?? 0.1, num_ctx: this.opts.numCtx ?? 6144, num_predict: 400 },
+      // Short answers & tool calls only: small context fits the GPU, capped output avoids runaways
+      options: { temperature: req.temperature ?? 0.1, num_ctx: this.opts.numCtx ?? 4096, num_predict: 256 },
     };
     const res = await fetch(this.endpoint(this.resolved!), {
       method: "POST",
@@ -114,6 +138,7 @@ export class OllamaProvider implements LLMProvider {
       data.message,
       req.tools?.map((t) => t.function.name),
     );
+    this.lastUse = Date.now();
     return {
       ...parsed,
       stats: {

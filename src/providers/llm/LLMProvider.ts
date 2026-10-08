@@ -50,4 +50,6 @@ export interface LLMProvider {
   readonly model: string;
   chat(req: ChatRequest): Promise<ChatResponse>;
   health(): Promise<LLMHealth>;
+  /** Optional: load the model ahead of the first request */
+  warm?(): Promise<void>;
 }

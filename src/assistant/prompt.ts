@@ -6,9 +6,13 @@ const TYPE_LABEL: Record<Profile["type"], string> = {
   PERSON: "personne",
   COUPLE: "couple",
   GROUP: "groupe",
-  HOUSEHOLD: "tout le foyer",
+  HOUSEHOLD: "foyer",
 };
 
+/**
+ * Compact system prompt for the LLM fallback (simple commands never reach the model).
+ * Kept short on purpose: fewer tokens = faster answers on a small local model.
+ */
 export function buildSystemPrompt(opts: {
   now: Date;
   householdName: string;
@@ -18,53 +22,26 @@ export function buildSystemPrompt(opts: {
   timezone: string;
 }): string {
   const { now } = opts;
-  const days = Array.from({ length: 14 }, (_, i) => {
+  const days = Array.from({ length: 8 }, (_, i) => {
     const d = addDays(now, i);
-    const label = i === 0 ? " (aujourd'hui)" : i === 1 ? " (demain)" : "";
-    return `${format(d, "EEEE", { locale: fr })} ${format(d, "yyyy-MM-dd")}${label}`;
-  }).join("\n");
-
+    return `${format(d, "EEE", { locale: fr })} ${format(d, "yyyy-MM-dd")}`;
+  }).join(", ");
   const profiles = opts.profiles
     .map((p) => {
-      const members =
-        p.type === "COUPLE" || p.type === "GROUP"
-          ? ` = ${p.memberIds.map((id) => opts.profiles.find((x) => x.id === id)?.name).filter(Boolean).join(" + ")}`
-          : "";
-      return `- ${p.name} (${TYPE_LABEL[p.type]}${members})`;
+      const members = p.type === "COUPLE" || p.type === "GROUP" ? `=${p.memberIds.map((id) => opts.profiles.find((x) => x.id === id)?.name).filter(Boolean).join("+")}` : "";
+      return `${p.name} (${TYPE_LABEL[p.type]}${members})`;
     })
-    .join("\n");
+    .join(", ");
+  const places = opts.places.map((p) => p.name).join(", ") || "aucun";
 
-  const places = opts.places.length ? opts.places.map((p) => `- ${p.name}`).join("\n") : "- (aucun)";
-
-  return `Tu es HomeCal, l'assistant du calendrier familial du foyer « ${opts.householdName} ».
-Nous sommes le ${format(now, "EEEE d MMMM yyyy", { locale: fr })}, il est ${format(now, "HH:mm")} (fuseau ${opts.timezone}).
-
-Calendrier des 14 prochains jours :
-${days}
-
-Profils :
-${profiles}
-${opts.speaker ? `La personne qui parle est : ${opts.speaker.name}. « moi », « je » = ${opts.speaker.name}.` : ""}
-« nous deux », « nous » = le profil couple. « tout le monde », « la famille » = le profil du foyer.
-
-Lieux favoris :
-${places}
-
-Tu peux aussi gérer les minuteurs, la liste de courses, la musique Spotify, les scènes de la maison et les trajets avec les outils fournis.
-Si plusieurs résultats musicaux sont possibles, propose le choix au lieu d'en lancer un au hasard.
-
+  return `Tu es HomeCal, assistant du foyer « ${opts.householdName} ». Nous sommes le ${format(now, "EEEE d MMMM yyyy HH:mm", { locale: fr })} (${opts.timezone}).
+Jours : ${days}.
+Profils : ${profiles}.${opts.speaker ? ` « moi » = ${opts.speaker.name}.` : ""} « nous deux » = couple, « tout le monde » = foyer.
+Lieux : ${places}.
 Règles :
-1. Pour lire ou modifier le calendrier, utilise TOUJOURS les outils. N'invente jamais d'événement ni d'id.
-2. Dates au format local AAAA-MM-JJTHH:MM, sans fuseau. Utilise le calendrier ci-dessus pour convertir « jeudi », « demain », etc.
-   Un jour de la semaine sans précision désigne sa prochaine occurrence.
-3. Pour modifier, déplacer ou supprimer : cherche d'abord l'événement (searchEvents ou getEvents) pour obtenir son id.
-4. Agis directement : ne demande PAS de confirmation (l'utilisateur peut annuler d'un geste). Le lieu, la durée et la description sont facultatifs : ne les demande pas et ne les invente pas.
-   Appelle uniquement les outils nécessaires : pour ajouter un événement, un seul appel createEvent suffit.
-   Pose une question courte uniquement si la date ou l'événement visé est vraiment impossible à déterminer.
-5. Pour un NOUVEL événement sans heure précisée, ne le crée pas : demande d'abord « À quelle heure ? » (sauf si l'utilisateur dit « toute la journée »).
-   Quand l'utilisateur répond ensuite avec une heure, crée l'événement avec les informations de la question précédente.
-   Pour la météo d'une ville, passe toujours son nom dans le paramètre location.
-   Durée par défaut : 1 h. « 16h » = 16:00, « 18h30 » = 18:30. « après-midi » = 13:00–18:00, « soir » = 18:00–23:00, « matin » = 8:00–12:00.
-6. Réponds en français, en 1 ou 2 phrases courtes et naturelles, adaptées à la lecture à voix haute. Pas de markdown, pas de liste, pas d'emoji.
-7. Après une action, confirme ce qui a été fait (quoi, quand, pour qui). Mentionne un éventuel conflit ou la pluie si pertinent.`;
+- Utilise les outils pour lire ou agir. N'invente ni événement, ni id, ni réussite.
+- Dates locales AAAA-MM-JJTHH:MM. Pour modifier/supprimer, trouve d'abord l'id (searchEvents).
+- Agis sans demander de confirmation. Sans heure pour un nouvel événement, demande « À quelle heure ? ».
+- Si plusieurs choix sont possibles, pose une question courte.
+- Réponds en français, 1 phrase courte, sans markdown ni emoji. Ne contredis jamais le résultat d'un outil.`;
 }
