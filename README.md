@@ -213,6 +213,28 @@ Les commandes simples (minuteurs, courses, scènes, musique, départ) sont recon
 
 `NEXT_PUBLIC_SPOTIFY_ENABLED`, `NEXT_PUBLIC_TIMERS_ENABLED`, `NEXT_PUBLIC_SHOPPING_ENABLED`, `NEXT_PUBLIC_SCENES_ENABLED` (vrais par défaut) : une fonction peut être masquée sans supprimer son code.
 
+## V2 — assistant « deterministic first, LLM second »
+
+```
+INPUT → normalisation → routeur d'intentions (score de confiance)
+          ├─ confiance suffisante → outil → réponse déterministe   (0 appel LLM)
+          └─ sinon                → LLM (outils du domaine, historique court, ≤ 3 étapes)
+```
+
+- **`src/assistant/router/`** : `normalize.ts` (accents, apostrophes, fautes STT, « euh / stp / tu peux », verbes canoniques), `intentRouter.ts` (seuils : ≥ 0,90 exécution, 0,70–0,90 si aucun concurrent proche, actions destructrices ≥ 0,95), `types.ts` (`ParsedIntent`, `PendingState`, `DomainModule`).
+- **`src/assistant/parsers/`** : un module par domaine (courses, minuteurs, rappels, musique, scènes, navigation, météo, calendrier) = parseur + exécution + reprise d'une question (« À quelle heure ? », « Lequel ? »).
+- **`src/assistant/responses/`** : réponses courtes construites depuis le `ToolResult` (« ✓ Lait et 6 œufs ajoutés aux courses. »).
+- **LLM** : outils limités au domaine détecté, 0 à 4 tours d'historique selon le contexte, 3 étapes maximum, arrêt immédiat après une action réussie, et la réponse du modèle ne peut jamais contredire un outil réussi.
+- **Ollama** : `num_ctx` 4096, `num_predict` 256, `keep_alive` 2 h, préchargement du modèle à l'ouverture de l'assistant.
+- **Mesures** : chaque réponse porte `metrics` (`totalMs`, `routerMs`, `toolMs`, `llmMs`, `llmCalls`, `intent`, `confidence`). Affichage sous les réponses avec `NEXT_PUBLIC_ASSISTANT_DEBUG=true` ou `localStorage.setItem("homecal.debug","1")`.
+
+| Benchmark (108 commandes simples) | Avant V2 | Après V2 |
+|---|---|---|
+| Traitées sans LLM | 52 % | **100 %** |
+| Latence (hors réseau) | 10–140 s quand Ollama était appelé | p95 **1 ms** |
+
+Tests : `tests/assistant-corpus/*` (≈ 1 100 formulations françaises : propres, familières, vocales, inversées, avec politesse), `tests/coverage.bench.test.ts`, `tests/latency.bench.test.ts`, `tests/assistant-quality.test.ts` (aucune contradiction, aucune action répétée).
+
 ## Raspberry Pi (kiosk)
 
 ```bash
