@@ -11,7 +11,9 @@ export async function GET(req: NextRequest) {
     const t0 = Date.now();
     try {
       const r = await fetch(`${target.base}/health`, { signal: AbortSignal.timeout(15000), cache: "no-store" });
-      return NextResponse.json({ reachable: r.status === 401 || r.ok, status: r.status, ms: Date.now() - t0 });
+      // same request with the server's key: tells whether the relay accepts it (never returns the key)
+      const k = await fetch(`${target.base}/health`, { headers: target.headers, signal: AbortSignal.timeout(15000), cache: "no-store" }).catch(() => null);
+      return NextResponse.json({ reachable: r.status === 401 || r.ok, keyAccepted: k ? k.ok : null, status: r.status, ms: Date.now() - t0 });
     } catch (e) {
       const err = e as Error & { cause?: { code?: string; message?: string } };
       console.error("[llm probe]", err.message, err.cause);
