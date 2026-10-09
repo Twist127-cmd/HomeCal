@@ -51,5 +51,6 @@ export interface WakeWordProvider {
   /** Debug/calibration: what the engine heard (text only, never audio). */
   onHeard?(cb: (text: string) => void): () => void;
   setSensitivity?(value: WakeSensitivity): Promise<void>;
-  setKeyword?(keyword: string): Promise<void>;
+  /** `variants`: how the name sounds, in French words ("jarre visse" for Jarvis) */
+  setKeyword?(keyword: string, variants?: string[]): Promise<void>;
 }

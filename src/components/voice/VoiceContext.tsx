@@ -7,7 +7,7 @@ import { useAssistantRunner } from "@/components/assistant/useAssistantRunner";
 import { features } from "@/lib/features";
 import { beep, vibrate } from "@/lib/sound";
 import { DEFAULT_SETTINGS, type HouseholdSettings } from "@/lib/types";
-import { createWakeWordProvider } from "@/providers/wakeword";
+import { createWakeWordProvider, parsePronunciation, stripLeadingName } from "@/providers/wakeword";
 import { WakeWordError, type WakeEngineStatus } from "@/providers/wakeword/WakeWordProvider";
 import { VoiceOrchestrator, type VoiceState } from "@/services/voice/VoiceOrchestrator";
 
@@ -119,9 +119,11 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
             return { lang: s?.voice.lang ?? "fr-FR", sound: w.sound, autoListen: w.autoListen, timeoutSec: w.timeoutSec, reply: w.reply };
           },
           handleCommand: async (text) => {
-            const r = await live.run(text, { pending: live.pending });
+            const w = live.settings?.wakeWord;
+            const command = stripLeadingName(text, w?.keyword || "HomeCal", parsePronunciation(w?.pronunciation));
+            const r = await live.run(command, { pending: live.pending });
             live.setPending(r?.pending ?? null);
-            const out = r?.text ?? "HomeCal n'est pas prêt.";
+            const out = r?.text ?? `${w?.keyword || "HomeCal"} n'est pas prêt.`;
             return { text: out, isQuestion: isQuestion(out), spokenNeeded: !r || !r.changed || r.actions.some((a) => !a.result.ok) };
           },
         })
@@ -182,11 +184,16 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
   // stop on unmount
   useEffect(() => () => void orchestrator?.stopWakeMode(), [orchestrator]);
 
-  // keep the engine in sync with the sensitivity setting
+  // keep the engine in sync with the sensitivity and assistant name settings
   const sensitivity = app.household?.settings.wakeWord?.sensitivity;
   useEffect(() => {
     if (sensitivity && wake?.setSensitivity) void wake.setSensitivity(sensitivity);
   }, [sensitivity, wake]);
+  const keyword = app.household?.settings.wakeWord?.keyword || "HomeCal";
+  const pronunciation = app.household?.settings.wakeWord?.pronunciation;
+  useEffect(() => {
+    if (wake?.setKeyword) void wake.setKeyword(keyword, parsePronunciation(pronunciation));
+  }, [keyword, pronunciation, wake]);
 
   const setEnabled = useCallback(
     async (v: boolean) => {

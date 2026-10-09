@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildGrammar, matchWakeWord, normalizeHeard } from "@/providers/wakeword/keywords";
+import { buildGrammar, isTunedKeyword, matchWakeWord, normalizeHeard, parsePronunciation, stripLeadingName } from "@/providers/wakeword/keywords";
 import { PorcupineWakeWordProvider } from "@/providers/wakeword/PorcupineWakeWordProvider";
 
 describe("buildGrammar", () => {
@@ -84,5 +84,30 @@ describe("PorcupineWakeWordProvider (stub)", () => {
     const p = new PorcupineWakeWordProvider();
     expect(p.isSupported()).toBe(false);
     await expect(p.start()).rejects.toMatchObject({ code: "NOT_CONFIGURED" });
+  });
+});
+
+describe("custom assistant name", () => {
+  it("keeps accents in the grammar (Vosk vocabulary spelling)", () => {
+    expect(buildGrammar("Élise", "normal")).toEqual(["élise", "[unk]"]);
+    expect(matchWakeWord("élise ajoute du lait", "Élise").matched).toBe(true);
+  });
+  it("uses the pronunciation hints", () => {
+    const extra = parsePronunciation("jarre visse, jar vis");
+    expect(extra).toEqual(["jarre visse", "jar vis"]);
+    expect(buildGrammar("Jarvis", "low", extra)).toEqual(["jarvis", "jarre visse", "jar vis", "[unk]"]);
+    expect(matchWakeWord("jarre visse", "Jarvis", "normal", extra).matched).toBe(true);
+    expect(matchWakeWord("jarre de miel", "Jarvis", "normal", extra).matched).toBe(false);
+  });
+  it("knows which names are pre-tuned", () => {
+    expect(isTunedKeyword("HomeCal")).toBe(true);
+    expect(isTunedKeyword("nora")).toBe(true);
+    expect(isTunedKeyword("Léon")).toBe(false);
+  });
+  it("strips the name when it opens the command", () => {
+    expect(stripLeadingName("Nora, ajoute du lait", "Nora")).toBe("ajoute du lait");
+    expect(stripLeadingName("homme cal mets la musique", "HomeCal")).toBe("mets la musique");
+    expect(stripLeadingName("ajoute Nora aux contacts", "Nora")).toBe("ajoute Nora aux contacts");
+    expect(stripLeadingName("Léon", "Léon")).toBe("Léon");
   });
 });

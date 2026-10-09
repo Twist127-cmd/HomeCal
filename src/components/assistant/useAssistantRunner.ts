@@ -58,7 +58,7 @@ export function useAssistantRunner() {
         result = await handleUtterance({
           input: t,
           history: history.slice(-6).map((h) => ({ role: h.role, text: h.text })),
-          systemPrompt: buildSystemPrompt({ now, householdName: household.name, profiles, places, speaker, timezone: household.settings.timezone }),
+          systemPrompt: buildSystemPrompt({ now, householdName: household.name, profiles, places, speaker, timezone: household.settings.timezone, assistantName: household.settings.wakeWord?.keyword }),
           llm: opts.llmAvailable === false ? null : llm,
           executor: new ToolExecutor(ctx),
           now,

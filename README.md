@@ -248,6 +248,7 @@ wakeword-listening ──« HomeCal »──▶ wakeword-detected ──▶ comm
 - **Moteur** : [Vosk](https://alphacephei.com/vosk/) (`vosk-browser`, WebAssembly) avec le modèle français *small* (`public/models/vosk-model-small-fr-0.22.tar.gz`, 40 Mo, mis en cache hors ligne par le service worker) et une grammaire limitée aux variantes phonétiques de « HomeCal » (« homme cal », « home cal »…). **Picovoice Porcupine** est payant depuis juin 2026 : il est préparé (`PorcupineWakeWordProvider`) mais désactivé. Coût : 0 €.
 - **Vie privée** : le mot de réveil est reconnu **dans le navigateur**. Aucun son n'est envoyé ni enregistré. La commande qui suit passe par la reconnaissance vocale du navigateur, comme le bouton micro. La pastille « 🎙 Écoute locale active » indique que le micro est ouvert.
 - **Activation** : **Réglages → Assistant vocal**, appareil par appareil (sur la tablette de la cuisine, pas forcément sur les téléphones). Le premier clic demande l'autorisation du micro et télécharge le modèle.
+- **Nom de l'assistant** : HomeCal, Nora, Milo, Nova (variantes réglées, les plus fiables) ou **n'importe quel nom** (2 à 20 lettres, deux mots au maximum). Le nom sert de mot de réveil et l'assistant se présente sous ce nom. Vosk ne connaît que les mots français : un prénom courant (Léon, Margot…) marche tel quel. Pour un nom étranger, indiquez sa prononciation en mots français (« Jarvis » → `jarre visse, jar vis`).
 - **Réglages du foyer** :
   - sensibilité basse / normale / haute (plus ou moins de variantes acceptées) ;
   - bip ;

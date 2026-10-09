@@ -36,6 +36,8 @@ type Listener<T extends unknown[]> = (...args: T) => void;
 export class VoskWakeWordProvider implements WakeWordProvider {
   readonly id = "vosk";
   private keyword = "HomeCal";
+  /** user pronunciation hints for a custom name */
+  private variants: string[] = [];
   private sensitivity: WakeSensitivity = "normal";
   private model: Model | null = null;
   private recognizer: KaldiRecognizer | null = null;
@@ -139,12 +141,12 @@ export class VoskWakeWordProvider implements WakeWordProvider {
   private createRecognizer() {
     if (!this.model || !this.ctx) return;
     this.recognizer?.remove();
-    const rec = new this.model.KaldiRecognizer(this.ctx.sampleRate, JSON.stringify(buildGrammar(this.keyword, this.sensitivity)));
+    const rec = new this.model.KaldiRecognizer(this.ctx.sampleRate, JSON.stringify(buildGrammar(this.keyword, this.sensitivity, this.variants)));
     const handle = (text: string) => {
       if (!text) return;
       this.heard.forEach((l) => l(text));
       if (this.paused || Date.now() < this.cooldownUntil) return;
-      const m = matchWakeWord(text, this.keyword, this.sensitivity);
+      const m = matchWakeWord(text, this.keyword, this.sensitivity, this.variants);
       if (!m.matched) return;
       this.cooldownUntil = Date.now() + COOLDOWN_MS;
       // fresh recogniser: the partial that matched must not trigger again
@@ -227,8 +229,9 @@ export class VoskWakeWordProvider implements WakeWordProvider {
     if (this.running) this.createRecognizer();
   }
 
-  async setKeyword(keyword: string): Promise<void> {
+  async setKeyword(keyword: string, variants: string[] = []): Promise<void> {
     this.keyword = keyword || "HomeCal";
+    this.variants = variants;
     if (this.running) this.createRecognizer();
   }
 

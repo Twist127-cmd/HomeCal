@@ -42,8 +42,10 @@ export type SpokenReplyMode = "always" | "needed" | "never";
 
 /** Hands-free activation ("HomeCal, ajoute du lait aux courses"). Per household; enabled per device. */
 export interface WakeWordSettings {
-  /** Wake word shown to the user */
+  /** Assistant name = wake word ("HomeCal", "Nora", or any name chosen by the family) */
   keyword: string;
+  /** Custom name only: how it sounds in French words, comma-separated ("jarre visse" for Jarvis) */
+  pronunciation?: string;
   sensitivity: WakeSensitivity;
   /** Short beep when the wake word is detected */
   sound: boolean;

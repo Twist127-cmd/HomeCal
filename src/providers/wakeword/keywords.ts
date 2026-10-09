@@ -68,18 +68,39 @@ export function normalizeHeard(text: string): string {
     .trim();
 }
 
-function profileFor(keyword: string): KeywordProfile {
+/** Pre-tuned names (reliable detection). Any other name works if it is (or sounds like) French words. */
+export function isTunedKeyword(keyword: string): boolean {
+  return !!PROFILES[normalizeHeard(keyword).replace(/\s+/g, "")];
+}
+
+/** Vosk vocabulary spelling: lower case, accents kept ("Élise" → "élise"). */
+function grammarForm(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[’]/g, "'")
+    .replace(/[^\p{L}' ]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** "jarre visse, jar vis" → ["jarre visse", "jar vis"] */
+export function parsePronunciation(text: string | undefined): string[] {
+  return (text ?? "").split(/[,;\n]/).map(grammarForm).filter(Boolean);
+}
+
+function profileFor(keyword: string, extra: string[] = []): KeywordProfile {
   const key = normalizeHeard(keyword).replace(/\s+/g, "");
   const p = PROFILES[key];
-  if (p) return p;
-  // generic keyword: its own words as the only variant
-  const k = normalizeHeard(keyword);
-  return { strict: [k], normal: [k], loose: [], loosePrefix: [], looseNext: /^$/ };
+  const own = grammarForm(keyword);
+  // generic keyword: its own words + the user's pronunciation hints
+  const base = p ?? { strict: [own], normal: [own], loose: [], loosePrefix: [], looseNext: /^$/ };
+  if (!extra.length) return base;
+  return { ...base, strict: [...base.strict, ...extra], normal: [...base.normal, ...extra] };
 }
 
 /** Vosk grammar (JSON array of phrases) for a keyword and sensitivity. */
-export function buildGrammar(keyword: string, sensitivity: WakeSensitivity = "normal"): string[] {
-  const p = profileFor(keyword);
+export function buildGrammar(keyword: string, sensitivity: WakeSensitivity = "normal", extra: string[] = []): string[] {
+  const p = profileFor(keyword, extra);
   const phrases = sensitivity === "low" ? p.strict : sensitivity === "high" ? [...p.normal, ...p.loose] : p.normal;
   return [...new Set(phrases), "[unk]"];
 }
@@ -90,10 +111,15 @@ const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  * Does the recognised text contain the wake word?
  * `trailing` = words heard right after it ("homme cal ajoute du lait" → "ajoute du lait").
  */
-export function matchWakeWord(text: string, keyword: string, sensitivity: WakeSensitivity = "normal"): { matched: boolean; trailing: string } {
+export function matchWakeWord(
+  text: string,
+  keyword: string,
+  sensitivity: WakeSensitivity = "normal",
+  extra: string[] = [],
+): { matched: boolean; trailing: string } {
   const heard = normalizeHeard(text);
   if (!heard) return { matched: false, trailing: "" };
-  const p = profileFor(keyword);
+  const p = profileFor(keyword, extra);
   const variants = (sensitivity === "low" ? p.strict : sensitivity === "high" ? [...p.normal, ...p.loose] : p.normal)
     .map(normalizeHeard)
     .sort((a, b) => b.length - a.length);
@@ -112,4 +138,16 @@ export function matchWakeWord(text: string, keyword: string, sensitivity: WakeSe
     }
   }
   return { matched: false, trailing: "" };
+}
+
+/** "Nora, ajoute du lait" → "ajoute du lait" (the command recogniser may repeat the name). */
+export function stripLeadingName(text: string, keyword: string, extra: string[] = []): string {
+  const p = profileFor(keyword, extra);
+  const variants = new Set([...p.normal, normalizeHeard(keyword).replace(/\s+/g, "")].map(normalizeHeard));
+  const words = text.trim().split(/\s+/);
+  // only when the name opens the sentence (1 to 3 words)
+  for (let n = Math.min(3, words.length - 1); n >= 1; n--) {
+    if (variants.has(normalizeHeard(words.slice(0, n).join(" ")))) return words.slice(n).join(" ").replace(/^[,.;:!\s]+/, "");
+  }
+  return text;
 }

@@ -20,6 +20,8 @@ export function buildSystemPrompt(opts: {
   places: FavoritePlace[];
   speaker?: Profile;
   timezone: string;
+  /** name chosen by the family (wake word) */
+  assistantName?: string;
 }): string {
   const { now } = opts;
   const days = Array.from({ length: 8 }, (_, i) => {
@@ -34,7 +36,7 @@ export function buildSystemPrompt(opts: {
     .join(", ");
   const places = opts.places.map((p) => p.name).join(", ") || "aucun";
 
-  return `Tu es HomeCal, assistant du foyer « ${opts.householdName} ». Nous sommes le ${format(now, "EEEE d MMMM yyyy HH:mm", { locale: fr })} (${opts.timezone}).
+  return `Tu es ${opts.assistantName?.trim() || "HomeCal"}, assistant du foyer « ${opts.householdName} ». Nous sommes le ${format(now, "EEEE d MMMM yyyy HH:mm", { locale: fr })} (${opts.timezone}).
 Jours : ${days}.
 Profils : ${profiles}.${opts.speaker ? ` « moi » = ${opts.speaker.name}.` : ""} « nous deux » = couple, « tout le monde » = foyer.
 Lieux : ${places}.

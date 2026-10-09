@@ -2,7 +2,15 @@ import { VoskWakeWordProvider } from "./VoskWakeWordProvider";
 import type { WakeWordProvider } from "./WakeWordProvider";
 
 export * from "./WakeWordProvider";
-export { buildGrammar, matchWakeWord, normalizeHeard, SUPPORTED_KEYWORDS } from "./keywords";
+export {
+  buildGrammar,
+  isTunedKeyword,
+  matchWakeWord,
+  normalizeHeard,
+  parsePronunciation,
+  stripLeadingName,
+  SUPPORTED_KEYWORDS,
+} from "./keywords";
 export { VoskWakeWordProvider, VOSK_MODEL_URL } from "./VoskWakeWordProvider";
 export { PorcupineWakeWordProvider } from "./PorcupineWakeWordProvider";
 
