@@ -54,6 +54,7 @@ export function withDefaults(h: Partial<Household> & { id: string }): Household 
       voice: { ...DEFAULT_SETTINGS.voice, ...s.voice },
       timers: { ...DEFAULT_SETTINGS.timers, ...s.timers },
       shopping: { ...DEFAULT_SETTINGS.shopping, ...s.shopping },
+      wakeWord: { ...DEFAULT_SETTINGS.wakeWord, ...s.wakeWord },
     },
   } as Household;
 }

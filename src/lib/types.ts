@@ -34,6 +34,25 @@ export interface HouseholdSettings {
   navigationApp: NavigationApp;
   timers: { sound: boolean; voice: boolean; notifications: boolean };
   shopping: { hideChecked: boolean };
+  wakeWord: WakeWordSettings;
+}
+
+export type WakeSensitivity = "low" | "normal" | "high";
+export type SpokenReplyMode = "always" | "needed" | "never";
+
+/** Hands-free activation ("HomeCal, ajoute du lait aux courses"). Per household; enabled per device. */
+export interface WakeWordSettings {
+  /** Wake word shown to the user */
+  keyword: string;
+  sensitivity: WakeSensitivity;
+  /** Short beep when the wake word is detected */
+  sound: boolean;
+  /** Start listening to the command right after the wake word */
+  autoListen: boolean;
+  /** Seconds to wait for the command before going back to wake-word mode */
+  timeoutSec: number;
+  /** Spoken answer after a voice command */
+  reply: SpokenReplyMode;
 }
 
 export type NavigationApp = "waze" | "google" | "apple" | "ask";
@@ -251,6 +270,7 @@ export const DEFAULT_SETTINGS: HouseholdSettings = {
   navigationApp: "ask",
   timers: { sound: true, voice: true, notifications: true },
   shopping: { hideChecked: false },
+  wakeWord: { keyword: "HomeCal", sensitivity: "normal", sound: true, autoListen: true, timeoutSec: 6, reply: "needed" },
 };
 
 export const SCENE_WIDGETS: { id: SceneWidget; label: string; icon: string }[] = [

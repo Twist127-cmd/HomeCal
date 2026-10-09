@@ -6,4 +6,5 @@ export const features = {
   timers: flag(process.env.NEXT_PUBLIC_TIMERS_ENABLED),
   shopping: flag(process.env.NEXT_PUBLIC_SHOPPING_ENABLED),
   scenes: flag(process.env.NEXT_PUBLIC_SCENES_ENABLED),
+  wakeWord: flag(process.env.NEXT_PUBLIC_WAKE_WORD_ENABLED),
 };
