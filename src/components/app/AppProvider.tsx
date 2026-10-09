@@ -182,6 +182,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [llmSettings],
   );
 
+  // HomeCal's voice (settings → every existing speech: assistant, voice mode, timers, reminders)
+  const voiceSettings = household?.settings.voice;
+  useEffect(() => {
+    if (voiceSettings) tts.configure({ voiceURI: voiceSettings.voiceURI, rate: voiceSettings.rate, pitch: voiceSettings.pitch });
+  }, [voiceSettings]);
+
   const uid = user?.uid;
   const music = useMemo<MusicProvider | null>(() => {
     if (!uid) return null;

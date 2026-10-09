@@ -29,12 +29,24 @@ export interface HouseholdSettings {
   dayEndHour: number;
   /** auto = try the /api/llm proxy, then the browser → Ollama direct connection */
   llm: { mode: LLMMode; baseUrl: string; model: string };
-  voice: { lang: string; autoSpeak: boolean };
+  voice: VoiceSettings;
   /** Preferred navigation app for "Pars maintenant" */
   navigationApp: NavigationApp;
   timers: { sound: boolean; voice: boolean; notifications: boolean };
   shopping: { hideChecked: boolean };
   wakeWord: WakeWordSettings;
+}
+
+/** HomeCal's spoken voice (speechSynthesis). Shared by the household; falls back per device. */
+export interface VoiceSettings {
+  lang: string;
+  autoSpeak: boolean;
+  /** SpeechSynthesisVoice.voiceURI; "" = automatic (best French voice of the device) */
+  voiceURI: string;
+  /** 0.8 – 1.2 */
+  rate: number;
+  /** 0.5 – 1.5 */
+  pitch: number;
 }
 
 export type WakeSensitivity = "low" | "normal" | "high";
@@ -268,7 +280,7 @@ export const DEFAULT_SETTINGS: HouseholdSettings = {
   dayStartHour: 7,
   dayEndHour: 23,
   llm: { mode: "auto", baseUrl: "http://localhost:11434", model: "qwen3:4b-instruct" },
-  voice: { lang: "fr-FR", autoSpeak: true },
+  voice: { lang: "fr-FR", autoSpeak: true, voiceURI: "", rate: 1, pitch: 1 },
   navigationApp: "ask",
   timers: { sound: true, voice: true, notifications: true },
   shopping: { hideChecked: false },

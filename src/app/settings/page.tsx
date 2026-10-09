@@ -21,7 +21,8 @@ export default function SettingsPage() {
       </main>
     );
   return (
-    <div className="scroll-thin h-full overflow-y-auto">
+    // no global scroll: the category menu and the active section scroll independently
+    <div className="h-full overflow-hidden">
       <SettingsScreen />
     </div>
   );

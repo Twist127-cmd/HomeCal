@@ -93,7 +93,7 @@ export function AssistantPanel({
 
   /** Speak `text`, then call `onDone` (immediately when the voice is muted). */
   const speak = useCallback(
-    (text: string, onDone?: () => void, rate?: number) => {
+    (text: string, onDone?: () => void, rateFactor?: number) => {
       if (muted || !tts.isSupported()) {
         onDone?.();
         return;
@@ -101,7 +101,7 @@ export function AssistantPanel({
       setPhase("speaking");
       tts.speak(text, {
         lang: household?.settings.voice.lang ?? "fr-FR",
-        rate,
+        rateFactor,
         onEnd: () => {
           setPhase((p) => (p === "speaking" ? "idle" : p));
           onDone?.();
@@ -153,7 +153,7 @@ export function AssistantPanel({
       // When the assistant asks a question, re-open the microphone for the answer
       const reopenMic = isQuestion(result.text) ? () => listenRef.current() : undefined;
       if (result.speech?.silent) return;
-      if (fromVoice || !muted) speak(result.text, reopenMic, result.speech?.rate);
+      if (fromVoice || !muted) speak(result.text, reopenMic, result.speech?.rateFactor);
       else reopenMic?.();
     },
     [householdId, household, llm, health, muted, speak, tts, runCommand],

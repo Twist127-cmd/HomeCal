@@ -137,8 +137,8 @@ export interface ConversationEnv {
 
 export interface ConversationReply {
   text: string;
-  /** speaking rate hint for the TTS (slower = 0.8) */
-  rate?: number;
+  /** multiplier of the configured speaking rate (slower = 0.8) */
+  rateFactor?: number;
   /** keep the pending question alive (repeat / help) */
   keepPending?: boolean;
   /** the reply is a repetition: always speak it, even in "needed" voice mode */
@@ -161,12 +161,12 @@ export async function runConversation(intent: ConversationIntent, env: Conversat
   switch (intent) {
     case "repeat":
       return env.lastAnswer
-        ? { text: env.lastAnswer, keepPending: true, forceSpeak: true, rate: 0.95 }
+        ? { text: env.lastAnswer, keepPending: true, forceSpeak: true, rateFactor: 0.95 }
         : { text: "Je n'ai encore rien dit. Que puis-je faire pour vous ?", keepPending: true, forceSpeak: true };
     case "slower":
       return env.lastAnswer
-        ? { text: env.lastAnswer, keepPending: true, forceSpeak: true, rate: 0.8 }
-        : { text: "D'accord, je parlerai plus lentement.", keepPending: true, forceSpeak: true, rate: 0.8 };
+        ? { text: env.lastAnswer, keepPending: true, forceSpeak: true, rateFactor: 0.8 }
+        : { text: "D'accord, je parlerai plus lentement.", keepPending: true, forceSpeak: true, rateFactor: 0.8 };
     case "undo": {
       if (!env.undoLast) return { text: "Il n'y a rien à annuler.", forceSpeak: true };
       const n = await env.undoLast();

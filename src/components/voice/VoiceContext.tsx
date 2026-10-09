@@ -129,7 +129,7 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
               isQuestion: isQuestion(out),
               spokenNeeded: !r || !r.changed || r.actions.some((a) => !a.result.ok),
               forceSpeak: r?.speech?.force,
-              rate: r?.speech?.rate,
+              rateFactor: r?.speech?.rateFactor,
               silent: r?.speech?.silent,
             };
           },

@@ -47,7 +47,7 @@ export interface AgentResult {
   pending?: PendingQuestion;
   metrics?: AgentMetrics;
   /** TTS hints from the conversational layer ("plus lentement", "répète") */
-  speech?: { rate?: number; force?: boolean; silent?: boolean };
+  speech?: { rateFactor?: number; force?: boolean; silent?: boolean };
 }
 
 export interface AgentHistoryItem {
@@ -249,7 +249,7 @@ export async function handleUtterance(opts: UtteranceOptions): Promise<AgentResu
       hasPending: !!opts.pending,
     });
     return finish(
-      { text: r.text, actions: [], changed: !!r.changed, pending: r.keepPending && opts.pending ? opts.pending : undefined, speech: { rate: r.rate, force: r.forceSpeak, silent: r.silent } },
+      { text: r.text, actions: [], changed: !!r.changed, pending: r.keepPending && opts.pending ? opts.pending : undefined, speech: { rateFactor: r.rateFactor, force: r.forceSpeak, silent: r.silent } },
       { intent: `conversation.${conv}`, confidence: 1 },
     );
   };

@@ -74,7 +74,7 @@ describe("conversational layer in handleUtterance", () => {
     assistantSession.setLastAnswer("Demain : Dentiste à 16h.");
     const r = await handleUtterance({ ...a.base, input: "Plus lentement", llm: failingLlm });
     expect(r.text).toBe("Demain : Dentiste à 16h.");
-    expect(r.speech?.rate).toBeLessThan(1);
+    expect(r.speech?.rateFactor).toBeLessThan(1);
   });
 
   it("undoes the previous command", async () => {

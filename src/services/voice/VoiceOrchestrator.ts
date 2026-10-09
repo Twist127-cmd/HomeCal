@@ -24,8 +24,8 @@ export interface CommandOutcome {
   spokenNeeded: boolean;
   /** explicit spoken request ("répète", "quelle heure est-il ?") → spoken whatever the reply mode */
   forceSpeak?: boolean;
-  /** TTS rate hint ("plus lentement") */
-  rate?: number;
+  /** multiplier of the configured TTS rate ("plus lentement") */
+  rateFactor?: number;
   /** never spoken ("tais-toi") */
   silent?: boolean;
 }
@@ -268,7 +268,7 @@ export class VoiceOrchestrator {
     const speakIt = !out.silent && (!!out.forceSpeak ||mode === "always" || (mode === "needed" && (out.spokenNeeded || out.isQuestion)));
     const followUp = out.isQuestion && this.d.settings().autoListen && this.followUps < MAX_FOLLOW_UPS;
     if (speakIt && this.d.tts.isSupported()) {
-      await this.speak(out.text, out.rate);
+      await this.speak(out.text, out.rateFactor);
     }
     if (followUp) {
       this.followUps++;
@@ -279,7 +279,7 @@ export class VoiceOrchestrator {
   }
 
   /** Speak with the wake word paused (HomeCal must not hear its own name). */
-  speak(text: string, rate?: number): Promise<void> {
+  speak(text: string, rateFactor?: number): Promise<void> {
     return new Promise((resolve) => {
       this.set("speaking");
       if (this.wakeMode) void this.d.wake.pause().catch(() => {});
@@ -289,9 +289,9 @@ export class VoiceOrchestrator {
         done = true;
         resolve();
       };
-      this.d.tts.speak(text, { lang: this.d.settings().lang, rate, onEnd: finish });
+      this.d.tts.speak(text, { lang: this.d.settings().lang, rateFactor, onEnd: finish });
       // safety net if the TTS engine never fires onEnd (slower speech lasts longer)
-      setTimeout(finish, Math.min(25000, 1500 + (text.length * 90) / Math.min(1, rate ?? 1)));
+      setTimeout(finish, Math.min(25000, 1500 + (text.length * 90) / Math.min(1, rateFactor ?? 1)));
     });
   }
 
