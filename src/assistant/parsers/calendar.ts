@@ -20,7 +20,8 @@ const OTHER_DOMAIN = /\b(courses|commissions|liste|minuteurs?|minuterie|chrono|t
 /** never an event title */
 const NOT_TITLE = /^(reveil|alarme|minuteur|son|volume|musique|chauffage|lumiere|lumieres|tele|television|mode|scene|four|lait|pain)$/;
 /** complex planning → LLM */
-const COMPLEX = /\b(organise|optimise|pour que|afin de|de sorte|sans etre en retard|avant le|apres le|entre midi|au moins|garde-moi|reorganise|tous mes|toutes mes|chaque fois)\b/;
+const COMPLEX =
+  /\b(organise|optimise|pour que|afin de|de sorte|sans etre en retard|avant le|apres le|entre midi|au moins|garde-moi|reorganise|tous mes|toutes mes|chaque fois|plutot|mais pas|sauf|excepte|a part le|a part la|sinon|si il|s'il|si on|si elle|compare|par rapport)\b/;
 const EVENT_NOUNS = String.raw`(?:rendez-vous|rdv|evenement|reunion|seance|cours)`;
 const ARTICLES = String.raw`(?:le |la |l'|les |mon |ma |mes |notre |nos |un |une )`;
 
@@ -97,10 +98,13 @@ export function parseCalendar(u: Utterance, ctx: RouterContext): ParsedIntent | 
   if (/\b(prochain|prochaine)\s+(rendez-vous|rdv|evenement|reunion|truc|activite)\b/.test(n) && /\b(quoi|quel|quelle|c'est|quand|j'ai|ai-je|mon|ma|notre|dis|montre|lis)\b/.test(n)) {
     return intent("calendar.next", 0.94, {}, u);
   }
+  if (/^(c'est quoi la suite|quelle est la suite|la suite du programme|c'est quoi la suite du programme|qu'est-ce qui vient apres|qu'est ce qui vient apres|c'est quoi le prochain truc|j'ai quoi apres|on a quoi apres|qu'est-ce que j'ai apres|qu'est ce que j'ai apres)$/.test(n)) {
+    return intent("calendar.next", 0.93, {}, u);
+  }
 
   // ---- reads: "j'ai quoi aujourd'hui ?", "que fait-on samedi ?", "on a quoi ce week-end ?"
   const READ =
-    /\b(j'ai quoi|qu'est-ce que j'ai|qu'est ce que j'ai|qu'ai-je|ai-je quelque chose|ai-je des|est-ce que j'ai|qu'avons-nous|qu'est-ce qu'on a|qu'est ce qu'on a|on a quoi|que fait-on|qu'est-ce qu'on fait|qu'est ce qu'on fait|on fait quoi|que faisons-nous|quel est (le|mon|notre) programme|c'est quoi (le|mon|notre) programme|(mon|notre|le) programme|(mon|notre|l') ?agenda|(mon|notre|le) planning|qu'est-ce qui est prevu|qu'est ce qui est prevu|qu'y a-t-il|qu'est-ce qu'il y a|qu'est ce qu'il y a|il y a quoi|y a quoi|quoi de prevu|des rendez-vous|des rdv|montre-moi (la journee|ma journee|demain|aujourd'hui)|ma journee|la journee de)\b/;
+    /\b(j'ai quoi|j'ai un truc|j'ai quelque chose|on a un truc|on a quelque chose|ai-je un truc|est-ce qu'on a quelque chose|est-ce qu'on a un truc|qu'est-ce que j'ai|qu'est ce que j'ai|qu'ai-je|ai-je quelque chose|ai-je des|est-ce que j'ai|qu'avons-nous|qu'est-ce qu'on a|qu'est ce qu'on a|on a quoi|que fait-on|qu'est-ce qu'on fait|qu'est ce qu'on fait|on fait quoi|que faisons-nous|quel est (le|mon|notre) programme|c'est quoi (le|mon|notre) programme|(mon|notre|le) programme|(mon|notre|l') ?agenda|(mon|notre|le) planning|qu'est-ce qui est prevu|qu'est ce qui est prevu|qu'y a-t-il|qu'est-ce qu'il y a|qu'est ce qu'il y a|il y a quoi|y a quoi|quoi de prevu|des rendez-vous|des rdv|montre-moi (la journee|ma journee|demain|aujourd'hui)|ma journee|la journee de)\b/;
   if (READ.test(n) && !complex && !/\b(ajoute|mets|note|cree|supprime|annule|decale|deplace)\b/.test(n.split(" ")[0])) {
     const r = readRange(u, ctx.now);
     const name = r.label === "today" ? "calendar.today" : r.label === "tomorrow" ? "calendar.tomorrow" : r.label === "range" ? "calendar.range" : "calendar.day";
@@ -108,7 +112,10 @@ export function parseCalendar(u: Utterance, ctx: RouterContext): ParsedIntent | 
   }
 
   // ---- search: "c'est quand le dentiste ?", "à quelle heure est la réunion ?", "quand est mon rendez-vous chez le dentiste ?"
-  const sr = /^(?:c'est quand|quand est|quand a lieu|quand c'est|a quelle heure (?:est|a lieu|commence|c'est)|quand ai-je|quand est-ce que j'ai|quand j'ai|c'est a quelle heure)\s+(.+)$/.exec(n);
+  const sr =
+    /^(?:c'est quand|quand est|quand a lieu|quand c'est|a quelle heure (?:est|a lieu|commence|c'est|j'ai|est-ce que j'ai|on a|ai-je)|quand ai-je|quand est-ce que j'ai|quand j'ai|quand on a|c'est a quelle heure)\s+(.+)$/.exec(n) ??
+    // "le dentiste c'est quand ?", "la réunion c'est à quelle heure ?"
+    /^((?:le |la |l'|mon |ma )\S.*?)\s+(?:c'est quand|c'est a quelle heure|est quand|est a quelle heure|a quelle heure)$/.exec(n);
   if (sr && !complex) {
     const q = cleanEventQuery(sr[1].replace(/^(le |la |l'|mon |ma )?/, ""));
     if (q && q.split(" ").length <= 4 && !NOT_TITLE.test(q)) return intent("calendar.search", 0.92, { query: q }, u);

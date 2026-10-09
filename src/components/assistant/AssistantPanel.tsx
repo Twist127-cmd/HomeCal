@@ -1,9 +1,10 @@
 "use client";
 
 import clsx from "clsx";
-import { Mic, MicOff, Send, Sparkles, Trash2, Undo2, Volume2, VolumeX, X } from "lucide-react";
+import { ClipboardList, Mic, MicOff, Send, Sparkles, Trash2, Undo2, Volume2, VolumeX, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isQuestion, type AgentMetrics, type AgentResult, type PendingQuestion } from "@/assistant/agent";
+import { assistantDebugEnabled, clearMisses, listMisses, missesAsCorpus } from "@/assistant/missLog";
 import { useApp } from "@/components/app/AppProvider";
 import { Button, Spinner } from "@/components/ui/primitives";
 import { toast } from "@/components/ui/toast";
@@ -60,14 +61,7 @@ export function AssistantPanel({
   const listRef = useRef<HTMLDivElement>(null);
   const handledInitial = useRef<string | null>(null);
   const pendingRef = useRef<PendingQuestion | null>(null);
-  const [debug] = useState(() => {
-    if (process.env.NEXT_PUBLIC_ASSISTANT_DEBUG === "true") return true;
-    try {
-      return typeof localStorage !== "undefined" && localStorage.getItem("homecal.debug") === "1";
-    } catch {
-      return false;
-    }
-  });
+  const [debug] = useState(assistantDebugEnabled);
   const listenRef = useRef<() => void>(() => {});
   const runCommand = useAssistantRunner();
   const voice = useVoice();
@@ -99,7 +93,7 @@ export function AssistantPanel({
 
   /** Speak `text`, then call `onDone` (immediately when the voice is muted). */
   const speak = useCallback(
-    (text: string, onDone?: () => void) => {
+    (text: string, onDone?: () => void, rate?: number) => {
       if (muted || !tts.isSupported()) {
         onDone?.();
         return;
@@ -107,6 +101,7 @@ export function AssistantPanel({
       setPhase("speaking");
       tts.speak(text, {
         lang: household?.settings.voice.lang ?? "fr-FR",
+        rate,
         onEnd: () => {
           setPhase((p) => (p === "speaking" ? "idle" : p));
           onDone?.();
@@ -157,7 +152,8 @@ export function AssistantPanel({
       setStep("");
       // When the assistant asks a question, re-open the microphone for the answer
       const reopenMic = isQuestion(result.text) ? () => listenRef.current() : undefined;
-      if (fromVoice || !muted) speak(result.text, reopenMic);
+      if (result.speech?.silent) return;
+      if (fromVoice || !muted) speak(result.text, reopenMic, result.speech?.rate);
       else reopenMic?.();
     },
     [householdId, household, llm, health, muted, speak, tts, runCommand],
@@ -236,6 +232,26 @@ export function AssistantPanel({
               )}
             </div>
           </div>
+          {debug && (
+            <Button
+              variant="ghost"
+              size="icon"
+              title="Copier les phrases envoyées au LLM (corpus de test) puis vider le journal"
+              onClick={async () => {
+                const n = listMisses().length;
+                if (!n) return toast({ text: "Aucune phrase envoyée au LLM." });
+                try {
+                  await navigator.clipboard.writeText(missesAsCorpus());
+                  clearMisses();
+                  toast({ text: `${n} phrase(s) copiée(s) — à coller dans tests/everyday.corpus.ts` });
+                } catch {
+                  toast({ text: "Copie impossible (presse-papiers bloqué).", tone: "error" });
+                }
+              }}
+            >
+              <ClipboardList size={18} />
+            </Button>
+          )}
           <Button variant="ghost" size="icon" onClick={() => setMuted((m) => !m)} title={muted ? "Activer la voix" : "Couper la voix"}>
             {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
           </Button>

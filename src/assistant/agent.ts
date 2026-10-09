@@ -1,10 +1,13 @@
 import type { ChatMessage, LLMProvider, ToolDefinition } from "@/providers/llm";
 import type { FavoritePlace, Profile, Scene } from "@/lib/types";
 import { type ToolExecutor, type ToolResult } from "./executor";
+import { META_INTENTS, matchConversation, runConversation } from "./conversation";
 import { dateHints, detectIntent, type Intent } from "./hints";
 import { sentence } from "./responses/common";
 import { resumePending, route } from "./router/intentRouter";
 import type { PendingState, RouteOutcome, RunEnv } from "./router/types";
+import { assistantDebugEnabled, recordMiss } from "./missLog";
+import { assistantSession } from "./session";
 import { toolsForDomain } from "./tools";
 
 /**
@@ -43,6 +46,8 @@ export interface AgentResult {
   /** question asked to the user, resolved deterministically on the next turn */
   pending?: PendingQuestion;
   metrics?: AgentMetrics;
+  /** TTS hints from the conversational layer ("plus lentement", "répète") */
+  speech?: { rate?: number; force?: boolean; silent?: boolean };
 }
 
 export interface AgentHistoryItem {
@@ -171,6 +176,10 @@ export interface UtteranceOptions {
   pending?: PendingQuestion | null;
   /** scenes, to recognise "mode cuisine" */
   scenesForParsing?: Scene[];
+  /** for the conversational answers ("Je suis …") */
+  assistantName?: string;
+  /** short memory shared by the panel and the voice mode (default: the tab's session) */
+  session?: typeof assistantSession;
   signal?: AbortSignal;
   onStep?(label: string): void;
 }
@@ -214,21 +223,47 @@ export async function handleUtterance(opts: UtteranceOptions): Promise<AgentResu
     onStep: opts.onStep,
     ctx: { now: opts.now, profiles: opts.profiles, places: opts.places, scenes: opts.scenesForParsing ?? [], currentProfileId: opts.currentProfileId },
   };
+  const session = opts.session ?? assistantSession;
   const finish = (r: RouteOutcome | AgentResult, extra: Partial<AgentMetrics> = {}): AgentResult => {
     Object.assign(m, extra);
     m.totalMs = Math.round(performance.now() - t0);
     m.toolMs = Math.round(m.toolMs);
     m.llmMs = Math.round(m.llmMs);
     const out: AgentResult = { ...r, fast: m.llmCalls === 0, metrics: m };
+    if (!out.speech?.silent) session.setLastAnswer(out.text);
+    if (!m.intent?.startsWith("conversation.")) session.setLastUndo(out.actions.filter((a) => a.result.undo).map((a) => a.result.undo!));
     logMetrics(m);
     return out;
   };
+
+  // 0. conversational turns ("répète", "j'ai pas entendu", "merci", "quelle heure est-il ?")
+  const conv = matchConversation(opts.input);
+  const converse = async () => {
+    const lastFromHistory = [...opts.history].reverse().find((h) => h.role === "assistant")?.text;
+    const r = await runConversation(conv!, {
+      now: opts.now,
+      lastAnswer: session.lastAnswer() ?? lastFromHistory,
+      assistantName: opts.assistantName,
+      speakerName: opts.profiles.find((p) => p.id === opts.currentProfileId)?.name,
+      undoLast: () => session.undoLast(),
+      hasPending: !!opts.pending,
+    });
+    return finish(
+      { text: r.text, actions: [], changed: !!r.changed, pending: r.keepPending && opts.pending ? opts.pending : undefined, speech: { rate: r.rate, force: r.forceSpeak, silent: r.silent } },
+      { intent: `conversation.${conv}`, confidence: 1 },
+    );
+  };
+  // meta questions answer the conversation itself → before a pending question ("répète" keeps it alive)
+  if (conv && META_INTENTS.has(conv)) return converse();
 
   // 1. answer to a pending question ("À quelle heure ?", "Lequel ?")
   if (opts.pending) {
     const r = await resumePending(opts.pending, opts.input, env);
     if (r) return finish(r, { intent: `${opts.pending.domain}.${opts.pending.kind}`, confidence: 1 });
   }
+
+  // social turns ("merci", "ok", "bonjour", "laisse tomber") — anchored on the whole sentence
+  if (conv) return converse();
 
   // 2. deterministic router
   const decision = route(opts.input, env.ctx);
@@ -242,7 +277,8 @@ export async function handleUtterance(opts: UtteranceOptions): Promise<AgentResu
     return finish(r);
   }
 
-  // 3. LLM fallback
+  // 3. LLM fallback — remember the sentence (debug mode) to grow the deterministic corpus
+  recordMiss({ input: opts.input, intent: decision.best?.intent, confidence: decision.best?.confidence, domainHint: decision.domainHint, via: llm ? "llm" : "offline" }, opts.now);
   if (!llm) {
     return finish({
       text: "L'assistant local n'est pas disponible. Les commandes simples fonctionnent : « Ajoute dentiste jeudi à 16h », « Minuteur 10 minutes », « Ajoute du lait aux courses ».",
@@ -289,11 +325,5 @@ function fallbackText(actions: AgentAction[]): string {
 }
 
 function logMetrics(m: AgentMetrics) {
-  let debug = process.env.NEXT_PUBLIC_ASSISTANT_DEBUG === "true";
-  try {
-    if (typeof localStorage !== "undefined" && localStorage.getItem("homecal.debug") === "1") debug = true;
-  } catch {
-    /* ignore */
-  }
-  if (debug) console.info("[HomeCal assistant]", JSON.stringify(m));
+  if (assistantDebugEnabled()) console.info("[HomeCal assistant]", JSON.stringify(m));
 }

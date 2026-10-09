@@ -124,7 +124,14 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
             const r = await live.run(command, { pending: live.pending });
             live.setPending(r?.pending ?? null);
             const out = r?.text ?? `${w?.keyword || "HomeCal"} n'est pas prêt.`;
-            return { text: out, isQuestion: isQuestion(out), spokenNeeded: !r || !r.changed || r.actions.some((a) => !a.result.ok) };
+            return {
+              text: out,
+              isQuestion: isQuestion(out),
+              spokenNeeded: !r || !r.changed || r.actions.some((a) => !a.result.ok),
+              forceSpeak: r?.speech?.force,
+              rate: r?.speech?.rate,
+              silent: r?.speech?.silent,
+            };
           },
         })
       : null,

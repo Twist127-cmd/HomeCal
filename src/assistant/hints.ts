@@ -124,6 +124,8 @@ export function parseWeatherQuestion(input: string, now: Date, places: { name: s
   if (!WEATHER_RE.test(n) && !WEATHER_EXTRA_RE.test(n)) return null;
   if (detectIntent(input) !== "query") return null;
   if (/\b(minuteur|courses|playlist|spotify|scene)\b/.test(n)) return null;
+  // durations, not weather: "ça fait combien de temps ?", "il reste combien de temps ?", "en combien de temps…"
+  if (/\b(combien de temps|depuis combien|pendant combien|en combien|le temps de|temps de trajet|temps qu'il reste|temps restant)\b/.test(n)) return null;
 
   // weather at an event: "est-ce qu'il pleuvra pour mon rendez-vous ?", "météo pour le dentiste"
   const ev = EVENT_WORDS.exec(n);

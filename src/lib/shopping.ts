@@ -138,7 +138,7 @@ export function isKnownProduct(name: string): boolean {
 
 const LIST_MARKER = String.raw`(?:liste de courses|liste des courses|liste de commissions|courses|commissions|liste|caddie)`;
 const LIST_PREP = String.raw`(?:a la|aux|au|dans la|dans les|dans le|dans mes|dans ma|sur la|sur ma|sur les|sur mes|pour les|pour la|en|a mes|a ma|de la|des|de mes|de ma)`;
-const STRONG_ADD = String.raw`(?:pense a acheter|pense a prendre|pense a racheter|n'oublie pas d'acheter|n'oublie pas de prendre|achete|racheter|rachete|il faut racheter|il faut acheter|il nous faut|il me faut|il faut|faut|j'ai besoin d'|j'ai besoin de|on a besoin d'|on a besoin de|besoin d'|besoin de|on n'a plus de|on n'a plus d'|il n'y a plus de|il n'y a plus d'|il y a plus de|il y a plus d'|y a plus de|plus de)`;
+const STRONG_ADD = String.raw`(?:pense a acheter|pense a prendre|pense a racheter|n'oublie pas d'acheter|n'oublie pas de prendre|n'oublie pas de racheter|n'oublie pas|on est a court de|on est a court d'|plus du tout de|il nous manque|il manque|achete|racheter|rachete|il faut racheter|il faut acheter|il nous faut|il me faut|il faut|faut|j'ai besoin d'|j'ai besoin de|on a besoin d'|on a besoin de|besoin d'|besoin de|on n'a plus de|on n'a plus d'|il n'y a plus de|il n'y a plus d'|il y a plus de|il y a plus d'|y a plus de|plus de)`;
 const GENERIC_ADD = String.raw`(?:ajoute|rajoute|mets|note|prevois|ecris|inscris|prends aussi|prends|rajoute aussi|ajoute aussi|mets aussi)`;
 const REMOVE = String.raw`(?:enleve|retire|supprime|efface|oublie|raye|vire|barre)`;
 const NOT_NEEDED = String.raw`(?:finalement |en fait )?(?:pas besoin de|pas besoin d'|plus besoin de|plus besoin d'|on a deja du|on a deja de la|on a deja des|on a deja|j'ai deja du|j'ai deja de la|j'ai deja des|j'ai deja)`;
@@ -206,6 +206,9 @@ export function parseShoppingUtterance(norm: string, text: string, raw = text): 
   const rawPlain = strip(raw);
   if (/\bc'est bon\b/.test(rawPlain)) n = n.replace(/\bc'est\b(?! bon)/, "c'est bon");
   if (!n) return null;
+  // open questions / writing requests are never list edits ("qu'est-ce que je pourrais cuisiner avec…", "écris un message…")
+  if (/^(pourquoi|comment|est-ce que je pourrais|qu'est-ce que je (pourrais|peux)|que (pourrais|peux)|explique|ecris un|ecris une|redige|resume|traduis|invente|raconte)\b/.test(n)) return null;
+  if (/\b(message|mail|e-mail|email|sms|lettre|texto|poeme|histoire|blague|recette|cuisiner)\b/.test(n) && !/\b(courses|commissions)\b/.test(n)) return null;
   // "liste les minuteurs", "liste mes rappels", "liste des scènes" belong to other domains
   if (/\b(minuteurs?|minuterie|chronos?|timers?|rappels?|scenes?|modes?|ambiances?)\b/.test(n) && !/\b(courses|commissions)\b/.test(n)) return null;
   const hasMarker = new RegExp(`\\b${LIST_MARKER}\\b`).test(n);
@@ -217,7 +220,8 @@ export function parseShoppingUtterance(norm: string, text: string, raw = text): 
 
   // ---- list / read
   if (
-    /\b(qu'est-ce qu'il (me |nous )?reste|qu'est ce qu'il (me |nous )?reste|que reste-t-il|il (me |nous )?reste quoi|reste quoi|il reste quoi|qu'est-ce qu'on doit acheter|qu'est-ce que je dois acheter|qu'est-ce qu'il faut acheter|qu'est ce qu'il faut acheter|on doit acheter quoi|il faut acheter quoi|quoi acheter|qu'y a-t-il (sur|dans) la liste|qu'est-ce qu'il y a (sur|dans) la liste|c'est quoi la liste|qu'est-ce qui reste a acheter|reste a acheter)\b/.test(n) &&
+    /\b(qu'est-ce qu'il (me |nous )?reste|qu'est ce qu'il (me |nous )?reste|que reste-t-il|il (me |nous )?reste quoi|reste quoi|il reste quoi|qu'est-ce qu'on doit acheter|qu'est-ce que je dois acheter|qu'est-ce qu'il faut acheter|qu'est ce qu'il faut acheter|on doit acheter quoi|il faut acheter quoi|quoi acheter|qu'y a-t-il (sur|dans) la liste|qu'est-ce qu'il y a (sur|dans) la liste|c'est quoi la liste|qu'est-ce qui reste a acheter|reste a acheter|ce qu'il (me |nous )?faut acheter|ce qu'on doit acheter|ce qu'il reste a acheter|il (nous |me )?manque quoi|qu'est-ce qui (nous |me )?manque|qu'est ce qui (nous |me )?manque|on a besoin de quoi|il (nous |me )?faut quoi|qu'est-ce qu'il (nous |me )?faut|qu'est ce qu'il (nous |me )?faut)\b/.test(n) &&
+    !/\b(pour (aller|partir|y aller|venir)|cuisiner|faire a manger|recette|preparer)\b/.test(n) &&
     !/\b(temps|minutes?|minuteur|secondes?)\b/.test(n)
   ) {
     return { intent: "shopping.list", confidence: 0.95 };
@@ -281,7 +285,8 @@ export function parseShoppingUtterance(norm: string, text: string, raw = text): 
   }
 
   // ---- add: "<verb> <items> [prep] [marker]"
-  const addRe = new RegExp(`^(${STRONG_ADD}|${GENERIC_ADD})\\s+(.+?)(?:\\s+(?:${LIST_PREP}\\s+)?${LIST_MARKER})?$`);
+  // "on n'a plus d'œufs": a verb ending with an elided "d'" is glued to the item
+  const addRe = new RegExp(`^(${STRONG_ADD}|${GENERIC_ADD})(?:\\s+|(?<='))(.+?)(?:\\s+(?:${LIST_PREP}\\s+)?${LIST_MARKER})?$`);
   if ((m = addRe.exec(n))) {
     const verb = m[1];
     const phrase = m[2].replace(/^(aussi|encore|moi)\s+/, "");

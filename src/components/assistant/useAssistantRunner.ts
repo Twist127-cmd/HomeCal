@@ -67,6 +67,7 @@ export function useAssistantRunner() {
           currentProfileId: myProfileId,
           pending: opts.pending,
           scenesForParsing: scenes.scenes,
+          assistantName: household.settings.wakeWord?.keyword,
           signal: opts.signal,
           onStep: opts.onStep,
         });

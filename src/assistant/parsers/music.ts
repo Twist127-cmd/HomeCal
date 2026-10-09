@@ -85,10 +85,13 @@ export function parseMusic(u: Utterance): MusicParse | null {
   // ---- volume
   let m = /\b(?:mets|monte|baisse|regle|passe|ajuste)\s+(?:le\s+|la\s+)?(?:son|volume|musique)\s+(?:a|au|sur)\s+(\d{1,3})\s*(?:%|pour ?cent|pourcent)?/.exec(n) ?? /\b(?:volume|son)\s+(?:a|au)?\s*(\d{1,3})\s*(?:%|pour ?cent|pourcent)?\b/.exec(n);
   if (m) return { intent: "music.volume", confidence: 0.95, entities: { value: Math.min(100, Number(m[1])) } };
-  if (/\b(monte|augmente|hausse)\s+(un peu\s+)?(le\s+|la\s+)?(son|volume|musique)\b|\b(plus fort|un peu plus fort|monte le|plus de son)\b/.test(n)) {
+  // "mets le son à fond", "volume au max", "baisse le son au minimum"
+  m = /\b(?:son|volume|musique)\s+(?:a|au)\s+(fond|max|maximum|bloc|min|minimum)\b|^(?:a fond|plein pot)$/.exec(n);
+  if (m) return { intent: "music.volume", confidence: 0.94, entities: { value: m[1] && /^min/.test(m[1]) ? 10 : 100 } };
+  if (/\b(monte|augmente|hausse)\s+(un peu\s+)?(le\s+|la\s+)?(son|volume|musique)\b|\b(plus fort|un peu plus fort|monte le|plus de son)\b|^(monte|augmente)( un peu| encore| encore un peu)?$/.test(n)) {
     return { intent: "music.volume", confidence: 0.94, entities: { delta: /un peu/.test(n) ? 10 : 15 } };
   }
-  if (/\b(baisse|diminue|reduis)\s+(un peu\s+)?(le\s+|la\s+)?(son|volume|musique)\b|\b(moins fort|un peu moins fort|baisse le|moins de son)\b/.test(n)) {
+  if (/\b(baisse|diminue|reduis)\s+(un peu\s+)?(le\s+|la\s+)?(son|volume|musique)\b|\b(moins fort|un peu moins fort|baisse le|moins de son)\b|^(baisse|diminue)( un peu| encore| encore un peu)?$/.test(n)) {
     return { intent: "music.volume", confidence: 0.94, entities: { delta: /un peu/.test(n) ? -10 : -15 } };
   }
   if (/\b(coupe le son|mets en sourdine|sourdine|mute)\b/.test(n)) return { intent: "music.volume", confidence: 0.92, entities: { value: 0 } };
