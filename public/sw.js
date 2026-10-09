@@ -1,7 +1,7 @@
 /* HomeCal service worker – offline shell + runtime caching.
  * Data itself is cached by Firestore (IndexedDB) and Open-Meteo (localStorage).
  */
-const VERSION = "homecal-v1";
+const VERSION = "homecal-v2";
 const SHELL = ["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png", "/offline.html"];
 
 self.addEventListener("install", (event) => {
@@ -29,15 +29,17 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return; // Firebase, Open-Meteo… handle themselves
   if (url.pathname.startsWith("/api/llm")) return;
 
-  // Static build assets: cache-first (immutable, hashed)
-  if (url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/icons/")) {
+  // Static build assets + wake-word model: cache-first (immutable) → wake word works offline
+  if (url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/icons/") || url.pathname.startsWith("/models/")) {
     event.respondWith(
       caches.match(req).then(
         (hit) =>
           hit ||
           fetch(req).then((res) => {
-            const copy = res.clone();
-            caches.open(VERSION).then((c) => c.put(req, copy));
+            if (res.ok) {
+              const copy = res.clone();
+              caches.open(VERSION).then((c) => c.put(req, copy));
+            }
             return res;
           }),
       ),
