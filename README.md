@@ -235,6 +235,39 @@ INPUT → normalisation → routeur d'intentions (score de confiance)
 
 Tests : `tests/assistant-corpus/*` (≈ 1 100 formulations françaises : propres, familières, vocales, inversées, avec politesse), `tests/coverage.bench.test.ts`, `tests/latency.bench.test.ts`, `tests/assistant-quality.test.ts` (aucune contradiction, aucune action répétée).
 
+## Mot de réveil « HomeCal » (mains libres)
+
+Dire « **HomeCal** » réveille l'assistant sans toucher l'écran, comme avec Alexa. HomeCal émet un bip, affiche « Je t'écoute… », écoute la commande, l'exécute (voie rapide V2, souvent sans LLM), répond si besoin, puis se remet en attente du mot de réveil.
+
+```
+wakeword-listening ──« HomeCal »──▶ wakeword-detected ──▶ command-listening ──▶ processing ──▶ speaking
+        ▲                                                       │ silence (timeout) / annulation     │
+        └───────────────────────────────────────────────────────┴────────────────────────────────────┘
+```
+
+- **Moteur** : [Vosk](https://alphacephei.com/vosk/) (`vosk-browser`, WebAssembly) avec le modèle français *small* (`public/models/vosk-model-small-fr-0.22.tar.gz`, 40 Mo, mis en cache hors ligne par le service worker) et une grammaire limitée aux variantes phonétiques de « HomeCal » (« homme cal », « home cal »…). **Picovoice Porcupine** est payant depuis juin 2026 : il est préparé (`PorcupineWakeWordProvider`) mais désactivé. Coût : 0 €.
+- **Vie privée** : le mot de réveil est reconnu **dans le navigateur**. Aucun son n'est envoyé ni enregistré. La commande qui suit passe par la reconnaissance vocale du navigateur, comme le bouton micro. La pastille « 🎙 Écoute locale active » indique que le micro est ouvert.
+- **Activation** : **Réglages → Assistant vocal**, appareil par appareil (sur la tablette de la cuisine, pas forcément sur les téléphones). Le premier clic demande l'autorisation du micro et télécharge le modèle.
+- **Réglages du foyer** :
+  - sensibilité basse / normale / haute (plus ou moins de variantes acceptées) ;
+  - bip ;
+  - écoute automatique après une question (2 relances au maximum) ;
+  - délai de silence ;
+  - réponse vocale : toujours / si nécessaire (questions, erreurs) / jamais.
+- **Exclusivité du micro** : l'ouverture de l'assistant, le bouton micro et la synthèse vocale mettent le mot de réveil en pause, et il reprend automatiquement ensuite. Il fonctionne aussi par-dessus le mode ambiant et les scènes.
+- **Limites** :
+  - l'onglet doit rester ouvert et au premier plan : Chrome et Android coupent le micro des pages en arrière-plan ou écran éteint, d'où l'usage en kiosque ou PWA, écran allumé ;
+  - iOS Safari est moins fiable ;
+  - HTTPS ou localhost est obligatoire ;
+  - le moteur WebAssembly consomme du CPU et de la mémoire.
+- **Calibration** : la précision dépend de la voix et de la pièce. Dans Réglages → Assistant vocal (bloc de diagnostic), « Dernière phrase entendue » affiche ce que Vosk comprend, et « Tester » simule une détection. Si HomeCal se déclenche trop souvent, baissez la sensibilité. S'il ne réagit pas, montez-la. Les variantes sont dans `src/providers/wakeword/keywords.ts`.
+- **Code** :
+  - `src/providers/wakeword/` : interface `WakeWordProvider`, Vosk, Porcupine désactivé ;
+  - `src/services/voice/VoiceOrchestrator.ts` : machine à états, pauses, relances, métriques ;
+  - `src/components/voice/` : contexte React et retour visuel.
+- **Désactivation globale** : `NEXT_PUBLIC_WAKE_WORD_ENABLED=false`.
+- **Tests** : `tests/voice-orchestrator.test.ts` et `tests/wakeword-keywords.test.ts`.
+
 ## Raspberry Pi (kiosk)
 
 ```bash
