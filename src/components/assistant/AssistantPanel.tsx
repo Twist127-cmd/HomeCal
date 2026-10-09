@@ -3,16 +3,13 @@
 import clsx from "clsx";
 import { Mic, MicOff, Send, Sparkles, Trash2, Undo2, Volume2, VolumeX, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { handleUtterance, isQuestion, type AgentMetrics, type AgentResult, type PendingQuestion } from "@/assistant/agent";
-import { ToolExecutor, type ToolContext } from "@/assistant/executor";
-import { useScenes } from "@/components/scenes/SceneContext";
-import { useModuleStores } from "@/hooks/useModules";
-import { features } from "@/lib/features";
-import { buildSystemPrompt } from "@/assistant/prompt";
+import { isQuestion, type AgentMetrics, type AgentResult, type PendingQuestion } from "@/assistant/agent";
 import { useApp } from "@/components/app/AppProvider";
 import { Button, Spinner } from "@/components/ui/primitives";
 import { toast } from "@/components/ui/toast";
-import { addAssistantMessage, clearAssistantHistory } from "@/lib/data/household";
+import { useVoice } from "@/components/voice/VoiceContext";
+import { clearAssistantHistory } from "@/lib/data/household";
+import { useAssistantRunner } from "./useAssistantRunner";
 import { firestore } from "@/lib/firebase/client";
 import type { LLMHealth } from "@/providers/llm";
 import type { SpeechSession } from "@/providers/speech/SpeechProvider";
@@ -50,7 +47,7 @@ export function AssistantPanel({
   startListening?: boolean;
 }) {
   const app = useApp();
-  const { llm, speech, tts, household, householdId, profiles, places, myProfileId, history } = app;
+  const { llm, speech, tts, household, householdId, history } = app;
   const [phase, setPhase] = useState<Phase>("idle");
   const [step, setStep] = useState("");
   const [partial, setPartial] = useState("");
@@ -72,14 +69,15 @@ export function AssistantPanel({
     }
   });
   const listenRef = useRef<() => void>(() => {});
-  const stores = useModuleStores();
-  const scenes = useScenes();
-  const timersRef = useRef(app.timers);
-  const shoppingRef = useRef(app.shopping);
+  const runCommand = useAssistantRunner();
+  const voice = useVoice();
+  // the panel owns the microphone while open: pause the hands-free wake word
   useEffect(() => {
-    timersRef.current = app.timers;
-    shoppingRef.current = app.shopping;
-  }, [app.timers, app.shopping]);
+    if (!open) return;
+    void voice.suspend();
+    return () => void voice.resume();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   // LLM health check when opening
   useEffect(() => {
@@ -121,20 +119,8 @@ export function AssistantPanel({
   const send = useCallback(
     async (text: string, fromVoice = false) => {
       const t = text.trim();
-      const base = app.toolContext();
-      if (!t || !base || !householdId || !household) return;
-      // V1.5 modules available to the assistant (timers, shopping list, music, scenes, navigation)
-      const ctx: ToolContext = {
-        ...base,
-        timers: stores && features.timers ? { list: () => timersRef.current, create: stores.timers.add, update: stores.timers.update, remove: stores.timers.remove } : undefined,
-        shopping:
-          stores && features.shopping ? { list: () => shoppingRef.current, add: stores.shopping.add, update: stores.shopping.update, remove: stores.shopping.remove } : undefined,
-        music: features.spotify ? app.music : null,
-        scenes: features.scenes ? { list: () => scenes.scenes, active: () => scenes.active, activate: scenes.activate, exit: scenes.exit } : undefined,
-        navigation: { app: () => household.settings.navigationApp ?? "ask", open: (url) => window.open(url, "_blank", "noopener") },
-      };
+      if (!t || !householdId || !household) return;
       tts.stop();
-      const db = firestore();
       const userMsg: LocalMessage = { id: `u${Date.now()}`, role: "user", text: t };
       const pendingId = `a${Date.now()}`;
       setLocal((l) => [...l, userMsg, { id: pendingId, role: "assistant", text: "", pending: true }]);
@@ -144,31 +130,12 @@ export function AssistantPanel({
       setStep("Je réfléchis…");
       abortRef.current = new AbortController();
 
-      const now = new Date();
-      const speaker = profiles.find((p) => p.id === myProfileId);
-      const recent = [...history.slice(-6).map((h) => ({ role: h.role, text: h.text }))];
-      let result: AgentResult;
-      try {
-        const llmOk = !!llm && (health?.ok ?? true);
-        result = await handleUtterance({
-          input: t,
-          history: recent,
-          systemPrompt: buildSystemPrompt({ now, householdName: household.name, profiles, places, speaker, timezone: household.settings.timezone }),
-          llm: llmOk ? llm : null,
-          executor: new ToolExecutor(ctx),
-          now,
-          profiles,
-          places,
-          currentProfileId: myProfileId,
-          pending: pendingRef.current,
-          scenesForParsing: scenes.scenes,
-          signal: abortRef.current.signal,
-          onStep: setStep,
-        });
-      } catch (e) {
-        const msg = (e as Error).name === "AbortError" ? "Interrompu." : `L'assistant local ne répond pas (${(e as Error).message}).`;
-        result = { text: msg, actions: [], changed: false };
-      }
+      const result: AgentResult = (await runCommand(t, {
+        pending: pendingRef.current,
+        signal: abortRef.current.signal,
+        onStep: setStep,
+        llmAvailable: !!llm && (health?.ok ?? true),
+      })) ?? { text: "HomeCal n'est pas prêt.", actions: [], changed: false };
       pendingRef.current = result.pending ?? null;
 
       const undo = result.actions.filter((a) => a.result.undo).map((a) => a.result.undo!);
@@ -192,18 +159,8 @@ export function AssistantPanel({
       const reopenMic = isQuestion(result.text) ? () => listenRef.current() : undefined;
       if (fromVoice || !muted) speak(result.text, reopenMic);
       else reopenMic?.();
-
-      // persist conversation (best effort)
-      const ts = new Date().toISOString();
-      addAssistantMessage(db, householdId, { role: "user", text: t, createdAt: ts }).catch(() => {});
-      addAssistantMessage(db, householdId, {
-        role: "assistant",
-        text: result.text,
-        createdAt: new Date(Date.now() + 1).toISOString(),
-        toolCalls: result.actions.map((a) => ({ name: a.name, ok: a.result.ok })),
-      }).catch(() => {});
     },
-    [app, householdId, household, profiles, places, myProfileId, history, llm, health, muted, speak, tts, stores, scenes],
+    [householdId, household, llm, health, muted, speak, tts, runCommand],
   );
 
   const listen = useCallback(() => {

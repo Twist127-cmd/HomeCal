@@ -8,6 +8,7 @@ import { useApp } from "@/components/app/AppProvider";
 import { useMusic } from "@/components/music/MusicContext";
 import { PlaceSearch } from "@/components/places/PlaceSearch";
 import { ScenesPanel } from "@/components/scenes/ScenesPanel";
+import { useVoice } from "@/components/voice/VoiceContext";
 import { features } from "@/lib/features";
 import { availableNavApps } from "@/lib/navigation";
 import { Avatar, Button, Card, Chip, Field, inputClass, Sheet, Spinner, Toggle } from "@/components/ui/primitives";
@@ -286,6 +287,9 @@ export function SettingsScreen() {
 
         <AssistantSettings settings={s} onChange={(llm) => set({ llm })} />
 
+        {/* ---------------- wake word ---------------- */}
+        {features.wakeWord && <WakeWordSettingsSection settings={s} onChange={(wakeWord) => set({ wakeWord })} />}
+
         {/* ---------------- voice ---------------- */}
         <Section title="Voix et notifications">
           <Toggle checked={s.voice.autoSpeak} onChange={(v) => set({ voice: { ...s.voice, autoSpeak: v } })} label="Lire les réponses et rappels à voix haute" />
@@ -387,6 +391,126 @@ function InviteBlock() {
         </div>
       </Field>
     );
+}
+
+const VOICE_STATE_LABEL: Record<string, string> = {
+  idle: "○ En veille",
+  "wakeword-listening": "● À l'écoute de “HomeCal”",
+  "wakeword-detected": "✨ “HomeCal” détecté",
+  "command-listening": "🎙 Je t'écoute…",
+  processing: "⏳ Je traite la commande…",
+  speaking: "🔊 Je réponds…",
+  error: "⚠️ Erreur",
+};
+
+function WakeWordSettingsSection({ settings, onChange }: { settings: HouseholdSettings; onChange(w: HouseholdSettings["wakeWord"]): void }) {
+  const voice = useVoice();
+  const w = settings.wakeWord;
+  const [busy, setBusy] = useState(false);
+  const upd = (patch: Partial<HouseholdSettings["wakeWord"]>) => onChange({ ...w, ...patch });
+
+  return (
+    <Section title="Assistant vocal">
+      <p className="text-sm text-muted">
+        HomeCal a besoin d&apos;accéder au microphone pour détecter son nom. Le traitement du mot de réveil est effectué localement : aucun son n&apos;est enregistré ni
+        envoyé.
+      </p>
+      {!voice.supported ? (
+        <p className="rounded-2xl bg-surface-2 p-3 text-sm text-muted">Le mot de réveil n&apos;est pas disponible sur cet appareil. Vous pouvez toujours utiliser le bouton micro.</p>
+      ) : (
+        <Toggle
+          checked={voice.enabled}
+          onChange={async (v) => {
+            if (busy) return;
+            setBusy(true);
+            try {
+              await voice.setEnabled(v);
+            } finally {
+              setBusy(false);
+            }
+          }}
+          label={
+            <span className="flex items-center gap-2">
+              Activer le mot de réveil sur cet appareil {busy && <Spinner size={14} />}
+            </span>
+          }
+        />
+      )}
+      {voice.error && <p className="text-sm text-danger">{voice.error}</p>}
+
+      <Field label="Mot de réveil" hint="D'autres noms (Nora, Milo, Nova) seront proposés plus tard.">
+        <div className="flex">
+          <Chip active>{w.keyword || "HomeCal"}</Chip>
+        </div>
+      </Field>
+
+      <Field label="Sensibilité">
+        <div className="flex flex-wrap gap-2">
+          {(
+            [
+              ["low", "Faible"],
+              ["normal", "Normale"],
+              ["high", "Élevée"],
+            ] as const
+          ).map(([id, l]) => (
+            <Chip key={id} active={w.sensitivity === id} onClick={() => upd({ sensitivity: id })}>
+              {l}
+            </Chip>
+          ))}
+        </div>
+      </Field>
+
+      <Toggle checked={w.sound} onChange={(v) => upd({ sound: v })} label="Son d'activation" />
+      <Toggle checked={w.autoListen} onChange={(v) => upd({ autoListen: v })} label="Écouter automatiquement après “HomeCal”" />
+
+      <Field label="Délai avant abandon">
+        <select className={inputClass} value={w.timeoutSec} onChange={(e) => upd({ timeoutSec: +e.target.value })}>
+          {[4, 6, 8, 10].map((n) => (
+            <option key={n} value={n}>
+              {n} secondes
+            </option>
+          ))}
+        </select>
+      </Field>
+
+      <Field label="Réponse vocale après commande">
+        <div className="flex flex-wrap gap-2">
+          {(
+            [
+              ["always", "Toujours"],
+              ["needed", "Seulement si nécessaire"],
+              ["never", "Jamais"],
+            ] as const
+          ).map(([id, l]) => (
+            <Chip key={id} active={w.reply === id} onClick={() => upd({ reply: id })}>
+              {l}
+            </Chip>
+          ))}
+        </div>
+      </Field>
+
+      {voice.enabled && (
+        <div className="space-y-2 rounded-2xl bg-surface-2 p-4 text-sm">
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-medium">{VOICE_STATE_LABEL[voice.state] ?? voice.state}</span>
+            <Button size="sm" onClick={() => voice.test()}>
+              <Mic size={16} /> Tester
+            </Button>
+          </div>
+          <div className="text-muted">
+            Dernière phrase entendue : <span className="text-text">{voice.lastHeard ? `« ${voice.lastHeard} »` : "—"}</span>
+          </div>
+          <div className="text-muted">
+            Dernière détection : <span className="text-text">{voice.lastDetectionAt ? new Date(voice.lastDetectionAt).toLocaleTimeString("fr-CH") : "—"}</span>
+          </div>
+          <div className="text-muted">
+            {voice.metrics.detections} détection(s) · {voice.metrics.cancelled} annulée(s) · {voice.metrics.commandsStarted} commande(s)
+          </div>
+          <p className="text-xs text-muted">Dites “HomeCal” : si la détection est difficile, augmentez la sensibilité.</p>
+        </div>
+      )}
+    </Section>
+  );
 }
 
 function Section({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
