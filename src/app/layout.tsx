@@ -53,8 +53,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="h-full">
-        <Appearance />
         <AppProvider>
+          <Appearance />
           <MusicContextProvider>
             <SceneProvider>
               <VoiceProvider>

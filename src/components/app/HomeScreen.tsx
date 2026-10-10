@@ -94,23 +94,6 @@ export function HomeScreen() {
     }
   }, []);
 
-  // night mode: dark + dim
-  useEffect(() => {
-    const root = document.documentElement;
-    if (night) root.classList.add("dark", "night");
-    else {
-      root.classList.remove("night");
-      let theme = "auto";
-      try {
-        theme = localStorage.getItem("homecal.theme") ?? "auto";
-      } catch {
-        /* ignore */
-      }
-      const dark = theme === "dark" || (theme === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-      root.classList.toggle("dark", dark);
-    }
-  }, [night]);
-
   const range = useMemo(() => viewRange(view, anchor), [view, anchor]);
   const { occurrences, conflicts, conflictKeys } = useOccurrences(range.start, addDays(range.end, 1), filter);
   const today = useOccurrences(startOfDay(now), addDays(startOfDay(now), 1), filter);

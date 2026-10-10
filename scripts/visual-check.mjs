@@ -61,6 +61,7 @@ const mocks = {
 const fixture = `
 import {useEffect,useState} from "react";
 import {createRoot} from "react-dom/client";
+import {Appearance} from "@/components/app/Appearance";
 import {HomeScreen} from "@/components/app/HomeScreen";
 import {SettingsScreen} from "@/components/settings/SettingsScreen";
 import {VoiceOverlay} from "@/components/voice/VoiceOverlay";
@@ -69,7 +70,7 @@ function Fixture(){
  const [path,setPath]=useState(location.pathname);
  useEffect(()=>{const change=()=>setPath(location.pathname);addEventListener("popstate",change);return()=>removeEventListener("popstate",change)},[]);
  useEffect(()=>{const clock=setInterval(()=>{const h=new Date().getHours();document.documentElement.dataset.period=h<6||h>=23?"night":h<11?"morning":h<18?"day":"evening"},60000);return()=>clearInterval(clock)},[]);
- return <>{path==="/settings"?<SettingsScreen/>:<HomeScreen/>}<VoiceOverlay/></>;
+ return <><Appearance/>{path==="/settings"?<SettingsScreen/>:<HomeScreen/>}<VoiceOverlay/></>;
 }
 window.fixtureApp=app;
 createRoot(document.getElementById("root")).render(<Fixture/>);
