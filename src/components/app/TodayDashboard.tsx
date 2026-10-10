@@ -125,7 +125,8 @@ export function TodayDashboard({ now, next, departure, today, editing, onEditing
 
       <div className="home-grid">
         {layout.filter((w) => w.visible && (editing ? enabled(w.id) : available(w.id))).map((w) => {
-          const index = layout.findIndex((x) => x.id === w.id);
+          const editableOrder = layout.filter((x) => x.visible && enabled(x.id));
+          const index = editableOrder.findIndex((x) => x.id === w.id);
           return <section key={w.id} className="home-widget glass-panel" data-widget={w.id} data-size={w.size} aria-label={WIDGETS[w.id].label}
             draggable={editing}
             onDragStart={(e) => { if (!editing) return; drag.current = w.id; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", w.id); }}
@@ -134,8 +135,8 @@ export function TodayDashboard({ now, next, departure, today, editing, onEditing
             onDragEnd={() => { drag.current = null; }}>
             {editing && <div className="mb-3 flex items-center gap-1 border-b border-border pb-3">
               <LayoutGrid size={16} className="mr-auto text-muted" />
-              <Button variant="ghost" size="icon" disabled={index === 0} onClick={() => save(reorderWidget(layout, w.id, layout[index - 1].id))} aria-label={"Avancer " + WIDGETS[w.id].label}><ArrowUp size={16} /></Button>
-              <Button variant="ghost" size="icon" disabled={index === layout.length - 1} onClick={() => save(reorderWidget(layout, w.id, layout[index + 1].id))} aria-label={"Reculer " + WIDGETS[w.id].label}><ArrowDown size={16} /></Button>
+              <Button variant="ghost" size="icon" disabled={index === 0} onClick={() => save(reorderWidget(layout, w.id, editableOrder[index - 1].id))} aria-label={"Avancer " + WIDGETS[w.id].label}><ArrowUp size={16} /></Button>
+              <Button variant="ghost" size="icon" disabled={index === editableOrder.length - 1} onClick={() => save(reorderWidget(layout, w.id, editableOrder[index + 1].id))} aria-label={"Reculer " + WIDGETS[w.id].label}><ArrowDown size={16} /></Button>
               <Button variant="ghost" size="icon" onClick={() => save(layout.map((x) => x.id === w.id ? { ...x, visible: false } : x))} aria-label={"Masquer " + WIDGETS[w.id].label}><X size={16} /></Button>
             </div>}
             <h2 className="home-widget-title">{WIDGETS[w.id].icon}{WIDGETS[w.id].label}</h2>

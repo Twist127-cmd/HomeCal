@@ -42,7 +42,7 @@ export const departure={occ,travel,status:{level:"green",minutes:30,text:"Dépar
 const noop=async()=>{};
 const artwork="data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160"><rect width="160" height="160" fill="#b3a18a"/><circle cx="80" cy="80" r="54" fill="#e2d2b7"/><circle cx="80" cy="80" r="23" fill="#806e60"/></svg>');
 export const music={enabled:true,connected:true,loading:false,busy:false,profile:{name:"Emma"},error:null,devices:[],playlists:[],recent:[],playback:{isPlaying:true,item:{uri:"fixture:track",type:"track",name:"Sunday morning",subtitle:"La playlist de la maison",image:artwork},device:{id:"speaker",name:"Salon"},progressMs:42000,durationMs:240000,fetchedAt:now.getTime()},
- toggle:()=>{music.playback={...music.playback,isPlaying:!music.playback.isPlaying};emit()},previous:noop,next:noop,loadLibrary:noop,playItem:noop,loadDevices:noop,refresh:noop,connect:noop};
+ toggle:()=>{music.playback={...music.playback,isPlaying:!music.playback.isPlaying};emit()},previous:noop,next:noop,loadLibrary:noop,playItem:noop,loadDevices:noop,setActive:noop,refresh:noop,connect:noop};
 export const voice={enabled:false,state:"idle",engineStatus:"ready",suspend:noop,resume:noop,notice:null};
 export const stores={timers:{update:async(id,patch)=>{app.timers=app.timers.map(t=>t.id===id?{...t,...patch}:t);emit()},remove:async(id)=>{app.timers=app.timers.filter(t=>t.id!==id);emit()},add:noop},shopping:{update:async(id,patch)=>{app.shopping=app.shopping.map(t=>t.id===id?{...t,...patch}:t);emit()},remove:noop,add:noop},scenes:{update:noop,remove:noop,add:noop}};
 `;
@@ -77,7 +77,7 @@ createRoot(document.getElementById("root")).render(<Fixture/>);
 `;
 await build({
  stdin:{contents:fixture,resolveDir:process.cwd(),sourcefile:"fixture.jsx",loader:"jsx"},
- bundle:true,outfile:out+"/app.js",platform:"browser",jsx:"automatic",define:{"process.env.NODE_ENV":'"production"'},
+ bundle:true,outfile:out+"/app.js",platform:"browser",jsx:"automatic",define:{"process.env.NODE_ENV":'"production"',"process.env":"{}"},
  plugins:[{name:"isolated-fixtures",setup(b){
    b.onResolve({filter:/.*/},a=>{
      if(a.path==="@fixture" || mocks[a.path]) return {path:a.path,namespace:"fixture"};

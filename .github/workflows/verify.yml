@@ -2,7 +2,10 @@ name: HomeCal verification
 on:
   pull_request:
   push:
-    branches: [main, "codex/**"]
+    branches: [main]
+concurrency:
+  group: homecal-verification-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
