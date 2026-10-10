@@ -50,3 +50,6 @@ ui-debug.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Isolated browser review output
+.visual/

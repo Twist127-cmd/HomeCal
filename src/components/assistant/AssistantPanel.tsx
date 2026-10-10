@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { isQuestion, type AgentMetrics, type AgentResult, type PendingQuestion } from "@/assistant/agent";
 import { assistantDebugEnabled, clearMisses, listMisses, missesAsCorpus } from "@/assistant/missLog";
 import { useApp } from "@/components/app/AppProvider";
-import { Button, Spinner } from "@/components/ui/primitives";
+import { Button } from "@/components/ui/primitives";
 import { toast } from "@/components/ui/toast";
 import { useVoice } from "@/components/voice/VoiceContext";
 import { clearAssistantHistory } from "@/lib/data/household";
@@ -297,7 +297,7 @@ export function AssistantPanel({
                 {m.pending ? (
                   // no loader for answers faster than 300 ms
                   <span className="flex items-center gap-2 text-muted opacity-0 [animation-delay:300ms] [animation-fill-mode:forwards] animate-fade-in">
-                    <Spinner size={14} /> {step}
+                    <span className="skeleton h-3 w-12" aria-hidden="true" /> {step}
                   </span>
                 ) : (
                   m.text
@@ -347,12 +347,13 @@ export function AssistantPanel({
             <button
               onClick={() => (phase === "listening" ? sessionRef.current?.stop() : phase === "thinking" ? abortRef.current?.abort() : listen())}
               className={clsx(
-                "flex h-20 w-20 items-center justify-center rounded-full text-white shadow-pop transition active:scale-95",
-                phase === "listening" ? "animate-pulse-ring bg-danger" : "bg-accent dark:text-black",
+                "assistant-orb !h-20 !w-20 transition active:scale-95",
+                phase === "listening" && "animate-pulse-ring",
               )}
-              aria-label={phase === "listening" ? "Arrêter l'écoute" : "Parler"}
+              data-state={phase === "thinking" ? "processing" : phase}
+              aria-label={phase === "listening" ? "Arrêter l'écoute" : phase === "thinking" ? "Annuler le traitement" : "Parler"}
             >
-              {phase === "thinking" ? <Spinner size={28} /> : phase === "listening" ? <MicOff size={30} /> : <Mic size={32} />}
+              {phase === "thinking" ? <Sparkles size={28} /> : phase === "listening" ? <MicOff size={30} /> : <Mic size={32} />}
             </button>
           </div>
           <form
@@ -368,7 +369,7 @@ export function AssistantPanel({
               placeholder="Écrire à l'assistant…"
               className="h-12 min-w-0 flex-1 rounded-full border border-border bg-surface-2 px-4 outline-none focus:border-accent"
             />
-            <Button type="submit" variant="primary" size="icon" disabled={!input.trim() || phase === "thinking"}>
+            <Button type="submit" variant="primary" size="icon" aria-label="Envoyer" disabled={!input.trim() || phase === "thinking"}>
               <Send size={18} />
             </Button>
           </form>

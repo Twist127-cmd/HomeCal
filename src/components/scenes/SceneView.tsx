@@ -2,7 +2,7 @@
 
 import clsx from "clsx";
 import { addDays } from "date-fns";
-import { AlertTriangle, Music2, Play, ShoppingCart, X } from "lucide-react";
+import { AlertTriangle, CalendarDays, Car, Home, Moon, Music2, Play, ShoppingCart, Timer, X } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
 import { useApp } from "@/components/app/AppProvider";
 import { MiniPlayer } from "@/components/music/MiniPlayer";
@@ -20,6 +20,7 @@ import { profileColor } from "@/lib/profiles";
 import { expandEvents } from "@/lib/recurrence";
 import type { Occurrence, Scene, SceneWidget } from "@/lib/types";
 import { describeWeather } from "@/providers/weather/WeatherProvider";
+import { WeatherIcon } from "@/components/ui/WeatherIcon";
 import { useScenes } from "./SceneContext";
 
 /** Full-screen scene ("Matin", "Cuisine", "Soir"…) built from the scene's widgets. */
@@ -29,10 +30,10 @@ export function SceneView({ scene, onOpenMusic }: { scene: Scene; onOpenMusic():
   const big = (w: SceneWidget) => scene.large && (w === "timers" || w === "shopping" || w === "music");
 
   return (
-    <div className={clsx("fixed inset-0 z-[45] flex animate-fade-in flex-col bg-bg", scene.dim && "brightness-[0.82]")}>
+    <div className={clsx("scene-shell fixed inset-0 z-[45] flex animate-fade-in flex-col", scene.dim && "brightness-[0.82]")} data-scene={scene.large ? "kitchen" : scene.dim ? "evening" : "morning"}>
       <header className="safe-top flex shrink-0 items-center gap-3 px-4 pb-3 sm:px-6">
-        <span className="text-3xl">{scene.icon}</span>
-        <h1 className="text-2xl font-semibold tracking-tight uppercase">{scene.name}</h1>
+        <Home size={26} strokeWidth={1.5} className="text-accent" />
+        <h1 className="text-2xl font-semibold tracking-tight">{scene.name}</h1>
         <span className="tabular ml-2 text-2xl text-muted">{fmt(now, "HH:mm")}</span>
         <div className="flex-1" />
         <div className="no-scrollbar hidden gap-1 overflow-x-auto sm:flex">
@@ -40,12 +41,12 @@ export function SceneView({ scene, onOpenMusic }: { scene: Scene; onOpenMusic():
             .filter((s) => s.id !== scene.id)
             .map((s) => (
               <button key={s.id} onClick={() => activate(s.id)} className="flex h-10 items-center gap-1.5 rounded-full bg-surface px-3 text-sm shadow-card">
-                {s.icon} {s.name}
+                <Home size={16} /> {s.name}
               </button>
             ))}
         </div>
         <button onClick={exit} className="flex h-12 items-center gap-2 rounded-full bg-text px-5 font-semibold text-bg active:scale-95" aria-label="Quitter la scène">
-          <X size={20} /> <span className="hidden sm:inline">Calendrier</span>
+          <X size={20} /> <span className="hidden sm:inline">Accueil</span>
         </button>
       </header>
 
@@ -64,10 +65,10 @@ export function SceneView({ scene, onOpenMusic }: { scene: Scene; onOpenMusic():
 }
 
 function Card({ children, className }: { children: ReactNode; className?: string }) {
-  return <section className={clsx("overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-card", className)}>{children}</section>;
+  return <section className={clsx("glass-panel overflow-hidden", className)}>{children}</section>;
 }
 
-function Title({ icon, children }: { icon: string; children: ReactNode }) {
+function Title({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   return (
     <h2 className="flex items-center gap-2 px-5 pt-4 text-sm font-semibold tracking-wide text-muted uppercase">
       <span className="text-base">{icon}</span> {children}
@@ -87,9 +88,9 @@ function Widget({ id, scene, now, onOpenMusic }: { id: SceneWidget; scene: Scene
     case "weather":
       return <WeatherWidget />;
     case "agenda":
-      return <DayWidget day={now} now={now} title="Aujourd'hui" icon="📅" />;
+      return <DayWidget day={now} now={now} title="Aujourd'hui" icon={<CalendarDays size={18} />} />;
     case "tomorrow":
-      return <DayWidget day={addDays(now, 1)} now={now} title="Demain" icon="🌙" withWeather />;
+      return <DayWidget day={addDays(now, 1)} now={now} title="Demain" icon={<Moon size={18} />} withWeather />;
     case "nextDeparture":
       return <DepartureWidget now={now} large={scene.large} />;
     case "music":
@@ -97,7 +98,7 @@ function Widget({ id, scene, now, onOpenMusic }: { id: SceneWidget; scene: Scene
     case "timers":
       return (
         <>
-          <Title icon="⏱️">Minuteurs</Title>
+          <Title icon={<Timer size={18} />}>Minuteurs</Title>
           <TimersPanel large={scene.large} />
         </>
       );
@@ -116,7 +117,7 @@ function WeatherWidget() {
   const w = describeWeather(c.weatherCode, c.isDay);
   return (
     <div className="flex items-center gap-5 p-6">
-      <span className="text-6xl">{w.emoji}</span>
+      <WeatherIcon code={c.weatherCode} isDay={c.isDay} size={64} className="shrink-0 text-accent" />
       <div>
         <div className="tabular text-5xl font-semibold">{Math.round(c.temperature)}°</div>
         <div className="text-muted">
@@ -128,7 +129,7 @@ function WeatherWidget() {
   );
 }
 
-function DayWidget({ day, now, title, icon, withWeather }: { day: Date; now: Date; title: string; icon: string; withWeather?: boolean }) {
+function DayWidget({ day, now, title, icon, withWeather }: { day: Date; now: Date; title: string; icon: ReactNode; withWeather?: boolean }) {
   const { events, profiles } = useApp();
   const f = useForecast();
   const list = useMemo(() => {
@@ -142,12 +143,12 @@ function DayWidget({ day, now, title, icon, withWeather }: { day: Date; now: Dat
         {title}
         {dw && (
           <span className="ml-auto font-normal normal-case">
-            {describeWeather(dw.weatherCode).emoji} {Math.round(dw.tMin)}°/{Math.round(dw.tMax)}°
+            <WeatherIcon code={dw.weatherCode} size={18} /> {Math.round(dw.tMin)}°/{Math.round(dw.tMax)}°
           </span>
         )}
       </Title>
       <div className="space-y-2 p-4">
-        {list.length === 0 && <p className="px-1 py-3 text-muted">Rien de prévu ✨</p>}
+        {list.length === 0 && <p className="px-1 py-3 text-muted">Rien de prévu</p>}
         {list.slice(0, 6).map((o) => (
           <OccRow key={o.key} o={o} color={profileColor(o.event.profileIds, profiles)} />
         ))}
@@ -173,7 +174,7 @@ function DepartureWidget({ now, large }: { now: Date; large?: boolean }) {
   if (!next) return <div className="p-6 text-muted">Aucun déplacement prévu.</div>;
   return (
     <>
-      <Title icon="🚗">Prochain départ</Title>
+      <Title icon={<Car size={18} />}>Prochain départ</Title>
       <div className="space-y-3 p-5">
         <div>
           <div className="text-2xl font-semibold">{next.event.title}</div>
@@ -204,7 +205,7 @@ function MusicWidget({ scene, onOpen }: { scene: Scene; onOpen(): void }) {
   const m = useMusic();
   return (
     <>
-      <Title icon="🎵">Musique</Title>
+      <Title icon={<Music2 size={18} />}>Musique</Title>
       <div className="space-y-3 p-4">
         {!m.connected ? (
           <button onClick={onOpen} className="flex w-full items-center gap-3 rounded-2xl bg-surface-2 p-4 text-left">
@@ -236,7 +237,7 @@ function ShoppingWidget({ large }: { large?: boolean }) {
   const n = shopping.filter((s) => !s.checked).length;
   return (
     <>
-      <Title icon="🛒">
+      <Title icon={<ShoppingCart size={18} />}>
         Courses <span className="ml-1 font-normal normal-case">· {n} article{n > 1 ? "s" : ""}</span>
       </Title>
       {large ? (
@@ -269,7 +270,7 @@ function ConflictsWidget({ now }: { now: Date }) {
   }, [events, profiles, household, now]);
   return (
     <>
-      <Title icon="⚠️">Conflits du jour</Title>
+      <Title icon={<AlertTriangle size={18} />}>Conflits du jour</Title>
       <div className="space-y-2 p-4">
         {conflicts.length === 0 ? (
           <p className="text-muted">Aucun conflit aujourd&apos;hui ✓</p>

@@ -5,6 +5,8 @@ import { addDays, addMonths, addWeeks } from "date-fns";
 import { AlertTriangle, ChevronLeft, ChevronRight, Mic, Moon, Music2, Settings, ShoppingCart, Sparkles, Timer as TimerIcon, Wand2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { TodayDashboard } from "@/components/app/TodayDashboard";
+import { WeatherIcon } from "@/components/ui/WeatherIcon";
 import { AmbientScreen } from "@/components/app/AmbientScreen";
 import { useApp } from "@/components/app/AppProvider";
 import { ContextualActions } from "@/components/app/ContextualActions";
@@ -75,11 +77,12 @@ export function HomeScreen() {
   const [availability, setAvailability] = useState(false);
   const [panel, setPanel] = useState<PanelId | null>(null);
   const [addSheet, setAddSheet] = useState(false);
+  const [customizing, setCustomizing] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("today");
   const settings = household!.settings;
   const [idle, wake] = useIdle(isMobile ? 0 : settings.ambientAfterSec);
   const night = settings.nightMode.enabled && inTimeWindow(now, settings.nightMode.start, settings.nightMode.end);
-  const overlayOpen = !!editor || assistant.open || availability || !!panel || addSheet;
+  const overlayOpen = !!editor || assistant.open || availability || !!panel || addSheet || customizing;
   const ambient = idle && !overlayOpen && !scene;
   const { launch, chooser } = useNavigationLauncher();
 
@@ -90,23 +93,6 @@ export function HomeScreen() {
       return () => clearTimeout(t);
     }
   }, []);
-
-  // night mode: dark + dim
-  useEffect(() => {
-    const root = document.documentElement;
-    if (night) root.classList.add("dark", "night");
-    else {
-      root.classList.remove("night");
-      let theme = "auto";
-      try {
-        theme = localStorage.getItem("homecal.theme") ?? "auto";
-      } catch {
-        /* ignore */
-      }
-      const dark = theme === "dark" || (theme === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-      root.classList.toggle("dark", dark);
-    }
-  }, [night]);
 
   const range = useMemo(() => viewRange(view, anchor), [view, anchor]);
   const { occurrences, conflicts, conflictKeys } = useOccurrences(range.start, addDays(range.end, 1), filter);
@@ -142,9 +128,10 @@ export function HomeScreen() {
       case "myDay":
         setAnchor(startOfDay(new Date()));
         setView(isMobile ? "agenda" : "day");
-        setMobileTab("today");
+        setMobileTab("calendar");
         break;
       case "tomorrow":
+        setMobileTab("calendar");
         setAnchor(addDays(startOfDay(new Date()), 1));
         setView("day");
         break;
@@ -206,12 +193,19 @@ export function HomeScreen() {
   };
 
   const panelContent = (p: Exclude<PanelId, "more">) =>
-    p === "music" ? <MusicPanel compact /> : p === "timers" ? <TimersPanel /> : p === "shopping" ? <ShoppingPanel /> : <ScenesPanel />;
+    p === "music" ? <MusicPanel compact /> : p === "timers" ? <TimersPanel /> : p === "shopping" ? <ShoppingPanel /> : <ScenesPanel onActivated={() => setPanel(null)} />;
 
-  const dockPanel = isWide && panel && panel !== "more";
+  const showHome = mobileTab === "today";
+  const dockPanel = !showHome && isWide && panel && panel !== "more";
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden">
+    <div className="home-shell flex h-dvh flex-col overflow-hidden">
+      {showHome ? (
+        <main className="scroll-thin min-h-0 flex-1 overflow-y-auto">
+          <TodayDashboard key={householdId} now={now} next={today.occurrences.find((o) => o.end > now) ?? next} departure={departure} today={today.occurrences} editing={customizing} onEditing={setCustomizing} onEvent={setDetail} onPanel={openPanel} onAssistant={() => setAssistant({ open: true, listen: true })} onCalendar={() => { setMobileTab("calendar"); setCustomizing(false); }} />
+        </main>
+      ) : (
+      <>
       {/* ---------- header ---------- */}
       <header className="safe-top flex shrink-0 flex-wrap items-center gap-x-2 gap-y-2 px-3 sm:gap-x-4 sm:px-5">
         <div className="flex min-w-0 items-baseline gap-2 sm:gap-3">
@@ -221,7 +215,7 @@ export function HomeScreen() {
         </div>
         {curW && cur && (
           <span className="flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-sm shadow-card" title={curW.label}>
-            <span className="text-lg leading-none">{curW.emoji}</span>
+            <WeatherIcon code={cur.weatherCode} isDay={cur.isDay} size={22} />
             <span className="tabular font-semibold">{Math.round(cur.temperature)}°</span>
             {forecast?.daily[0] && (
               <span className="hidden text-muted xl:inline">
@@ -255,7 +249,7 @@ export function HomeScreen() {
                 key={v.id}
                 onClick={() => {
                   setView(v.id);
-                  setMobileTab(v.id === "agenda" ? "today" : "calendar");
+                  setMobileTab("calendar");
                 }}
                 className={clsx("h-9 min-w-0 rounded-full px-2 text-sm font-medium transition md:px-4", view === v.id ? "bg-surface shadow-sm" : "text-muted hover:text-text")}
               >
@@ -373,8 +367,8 @@ export function HomeScreen() {
                 <h2 className="text-lg font-semibold">Aujourd&apos;hui</h2>
                 <span className="text-sm text-muted">{today.occurrences.length} événement(s)</span>
               </div>
-              {today.occurrences.length === 0 && <p className="rounded-2xl bg-surface px-4 py-6 text-center text-muted shadow-card">Journée libre ✨</p>}
-              {today.occurrences.map((o) => (
+              {today.occurrences.length === 0 && <p className="rounded-2xl bg-surface px-4 py-6 text-center text-muted shadow-card">Journée libre</p>}
+              {today.occurrences.slice(0, 3).map((o) => (
                 <AgendaRow key={o.key} occ={o} day={today.occurrences} conflict={today.conflictKeys.has(o.key)} now={now} onClick={() => setDetail(o)} />
               ))}
               {conflicts.length > 0 && (
@@ -408,8 +402,10 @@ export function HomeScreen() {
         )}
       </main>
 
-      {/* ---------- mobile: mini player + bottom navigation ---------- */}
-      {isMobile && (
+      </>
+      )}
+      {/* ---------- floating dock ---------- */}
+      {isMobile && !showHome && (
         <div className="shrink-0 px-2 pb-1 empty:hidden">
           <MiniPlayer onOpen={() => openPanel("music")} variant="bar" className="border border-border shadow-card" />
         </div>
@@ -419,10 +415,8 @@ export function HomeScreen() {
         panel={panel}
         onTab={(t) => {
           setMobileTab(t);
-          if (t === "today") {
-            setAnchor(startOfDay(new Date()));
-            setView("agenda");
-          } else setView(view === "agenda" ? "month" : view);
+          setCustomizing(false);
+          if (t === "calendar" && viewChoice === null && isMobile) setView("month");
         }}
         onAdd={() => setAddSheet(true)}
         onPanel={openPanel}

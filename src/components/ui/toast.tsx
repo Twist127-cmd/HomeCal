@@ -42,12 +42,12 @@ export function Toaster() {
     () => toasts,
   );
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-24 z-[60] flex flex-col items-center gap-2 px-4 sm:bottom-6">
+    <div role="status" aria-live="polite" aria-atomic="false" className="pointer-events-none fixed inset-x-0 bottom-24 z-[60] flex flex-col items-center gap-2 px-4 sm:bottom-28">
       {list.map((t) => (
         <div
           key={t.id}
           className={clsx(
-            "pointer-events-auto flex max-w-lg animate-slide-up items-center gap-3 rounded-2xl px-4 py-3 text-[15px] shadow-pop",
+            "pointer-events-auto flex max-w-lg animate-slide-up items-center gap-3 rounded-2xl border border-border px-4 py-3 backdrop-blur-sm text-[15px] shadow-pop",
             t.tone === "error" ? "bg-danger text-white" : t.tone === "reminder" ? "bg-accent text-white dark:text-black" : "bg-text text-bg",
           )}
         >
