@@ -29,6 +29,7 @@ export interface SpotifyProviderOptions {
  * Spotify devices (phone, computer, speaker…), HomeCal pilots them.
  */
 export class SpotifyProvider implements MusicProvider {
+  private retryAt = 0;
   readonly id = "spotify" as const;
   readonly label = "Spotify";
 
@@ -42,6 +43,7 @@ export class SpotifyProvider implements MusicProvider {
     if (!features.spotify) throw new MusicError("NOT_CONFIGURED");
     const cipher = this.opts.getCipher();
     if (!cipher) throw new MusicError("NOT_CONNECTED");
+    if (Date.now() < this.retryAt) throw new MusicError("RATE_LIMITED");
     if (typeof navigator !== "undefined" && navigator.onLine === false) throw new MusicError("OFFLINE");
     const idToken = await this.opts.getIdToken();
     if (!idToken) throw new MusicError("NOT_CONNECTED", "Connexion HomeCal requise");
@@ -58,8 +60,13 @@ export class SpotifyProvider implements MusicProvider {
     const json = (await res.json().catch(() => ({}))) as { data?: T; cipher?: string; code?: MusicErrorCode | "UNAUTHORIZED"; error?: string };
     if (json.cipher) this.opts.onCipherRotated(json.cipher);
     if (!res.ok) {
+      if (res.status === 429) {
+        const seconds = Number(res.headers.get("Retry-After"));
+        this.retryAt = Date.now() + (Number.isFinite(seconds) && seconds > 0 ? seconds : 30) * 1000;
+        throw new MusicError("RATE_LIMITED");
+      }
       const code = json.code === "UNAUTHORIZED" ? "NOT_CONNECTED" : (json.code ?? "UNKNOWN");
-      throw new MusicError(code as MusicErrorCode);
+      throw new MusicError(code as MusicErrorCode, code === "UNKNOWN" ? json.error : undefined);
     }
     return json.data as T;
   }

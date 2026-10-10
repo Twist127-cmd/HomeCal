@@ -125,6 +125,29 @@ export function MusicContextProvider({ children }: { children: ReactNode }) {
     [music, playback, refresh, handle],
   );
 
+  const loadLibrary = useCallback(async () => {
+    if (!music || !connected) return;
+    setLoading(true);
+    try {
+      const [pl, rc] = await Promise.all([music.getPlaylists(), music.getRecent().catch(() => [])]);
+      setPlaylists(pl);
+      setRecent(rc);
+    } catch (e) {
+      handle(e, true);
+    } finally {
+      setLoading(false);
+    }
+  }, [music, connected, handle]);
+
+  const loadDevices = useCallback(async () => {
+    if (!music || !connected) return;
+    try {
+      setDevices(await music.getDevices());
+    } catch (e) {
+      handle(e, true);
+    }
+  }, [music, connected, handle]);
+
   const value = useMemo<MusicState>(
     () => ({
       enabled: features.spotify,
@@ -139,27 +162,8 @@ export function MusicContextProvider({ children }: { children: ReactNode }) {
       error,
       refresh,
       setActive,
-      async loadLibrary() {
-        if (!music || !connected) return;
-        setLoading(true);
-        try {
-          const [pl, rc] = await Promise.all([music.getPlaylists(), music.getRecent().catch(() => [])]);
-          setPlaylists(pl);
-          setRecent(rc);
-        } catch (e) {
-          handle(e, true);
-        } finally {
-          setLoading(false);
-        }
-      },
-      async loadDevices() {
-        if (!music || !connected) return;
-        try {
-          setDevices(await music.getDevices());
-        } catch (e) {
-          handle(e, true);
-        }
-      },
+      loadLibrary,
+      loadDevices,
       toggle: () =>
         playback?.isPlaying
           ? act(() => music!.pause(), (p) => ({ ...p, isPlaying: false }))
@@ -209,7 +213,7 @@ export function MusicContextProvider({ children }: { children: ReactNode }) {
         } else window.open(web, "_blank", "noopener");
       },
     }),
-    [connected, spotify, playback, devices, playlists, recent, loading, error, refresh, music, act, handle],
+    [connected, spotify, playback, devices, playlists, recent, loading, error, refresh, music, act, handle, loadLibrary, loadDevices],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

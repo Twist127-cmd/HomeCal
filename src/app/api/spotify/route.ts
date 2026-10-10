@@ -42,7 +42,10 @@ export async function POST(req: NextRequest) {
     const cipher = rotated ? await seal({ uid: user.uid, provider: "spotify", refreshToken: rotated }) : undefined;
     return NextResponse.json({ data, cipher });
   } catch (e) {
-    if (e instanceof SpotifyApiError) return NextResponse.json({ code: e.code, error: e.message }, { status: e.status });
+    if (e instanceof SpotifyApiError) return NextResponse.json({ code: e.code, error: e.message }, {
+      status: e.status,
+      headers: e.retryAfter ? { "Retry-After": String(e.retryAfter) } : undefined,
+    });
     console.error("[spotify]", body.op, e);
     return NextResponse.json({ code: "UNKNOWN", error: (e as Error).message }, { status: 502 });
   }

@@ -32,6 +32,7 @@ export class SpotifyApiError extends Error {
     readonly code: "NOT_CONFIGURED" | "AUTH_EXPIRED" | "PREMIUM_REQUIRED" | "NO_DEVICE" | "RATE_LIMITED" | "UNKNOWN",
     message: string,
     readonly status = 400,
+    readonly retryAfter?: number,
   ) {
     super(message);
   }
@@ -100,12 +101,16 @@ export async function spotifyFetch<T>(token: string, method: string, path: strin
   });
   if (res.status === 204 || res.status === 202) return null;
   const text = await res.text();
-  const json = text ? (JSON.parse(text) as Record<string, unknown>) : null;
+  let json: Record<string, unknown> | null = null;
+  try { json = text ? JSON.parse(text) as Record<string, unknown> : null; } catch { /* Some Spotify errors return plain text. */ }
   if (res.ok) return json as T;
 
   const err = (json?.error ?? {}) as { message?: string; reason?: string };
   if (res.status === 401) throw new SpotifyApiError("AUTH_EXPIRED", err.message ?? "Token expiré", 401);
-  if (res.status === 429) throw new SpotifyApiError("RATE_LIMITED", "Trop de demandes", 429);
+  if (res.status === 429) {
+    const seconds = Number(res.headers.get("Retry-After"));
+    throw new SpotifyApiError("RATE_LIMITED", "Trop de demandes", 429, Number.isFinite(seconds) && seconds > 0 ? seconds : 30);
+  }
   if (res.status === 403 && (err.reason === "PREMIUM_REQUIRED" || /premium/i.test(err.message ?? ""))) {
     throw new SpotifyApiError("PREMIUM_REQUIRED", "Spotify Premium requis", 403);
   }
