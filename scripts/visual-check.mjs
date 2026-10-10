@@ -112,11 +112,12 @@ try {
  for(const size of sizes)for(const theme of ["light","dark"])for(const [period,hour] of [["morning",8],["day",14],["evening",20],["night",1]]) {
   const context=await browser.newContext({viewport:{width:size.width,height:size.height},colorScheme:theme,reducedMotion:"reduce"});
   const page=await context.newPage();
-  page.on("pageerror",e=>{errors.push(e.message);console.log("BROWSER_ERROR:"+e.stack)});
+  page.on("console",m=>console.log("BROWSER_CONSOLE:"+m.type()+":"+m.text()));
+ page.on("pageerror",e=>{errors.push(e.message);console.log("BROWSER_ERROR:"+e.name+":"+e.message+":"+e.stack)});
   await page.clock.install({time:new Date(2026,3,26,hour,42)});
   await page.addInitScript(({theme,period})=>{localStorage.setItem("homecal.theme",theme);document.addEventListener("DOMContentLoaded",()=>{document.documentElement.classList.toggle("dark",theme==="dark");document.documentElement.dataset.period=period},{once:true})},{theme,period});
   await page.goto("http://127.0.0.1:4173");
-  await page.getByRole("heading",{level:1}).waitFor({timeout:10000}).catch(async e=>{await page.screenshot({path:out+"/failed-screen.png"});console.log("BROWSER_BODY:"+await page.locator("body").innerText());throw e});
+  await page.getByRole("heading",{level:1}).waitFor({timeout:10000}).catch(async e=>{await page.screenshot({path:out+"/failed-screen.png"});console.log("BROWSER_HTML:"+await page.content());throw e});
   await page.screenshot({path:out+"/"+size.name+"-"+theme+"-"+period+".png",fullPage:true});
   if((size.name==="tablet-landscape"&&theme==="light"&&period==="day")||(size.name==="desktop"&&theme==="dark"&&period==="evening")||(size.name==="phone"&&theme==="dark"&&period==="morning")) console.log("VISUAL_REVIEW:"+size.name+":"+(await page.screenshot({type:"jpeg",quality:55})).toString("base64"));
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,"horizontal overflow: "+size.name+" "+theme+" "+period);
@@ -126,7 +127,8 @@ try {
  }
  const context=await browser.newContext({viewport:{width:1200,height:800},reducedMotion:"reduce"});
  const page=await context.newPage();
- page.on("pageerror",e=>{errors.push(e.message);console.log("BROWSER_ERROR:"+e.stack)});
+ page.on("console",m=>console.log("BROWSER_CONSOLE:"+m.type()+":"+m.text()));
+ page.on("pageerror",e=>{errors.push(e.message);console.log("BROWSER_ERROR:"+e.name+":"+e.message+":"+e.stack)});
  await page.clock.install({time:new Date(2026,3,26,8,42)});
  await page.goto("http://127.0.0.1:4173");
  await page.getByRole("button",{name:"Personnaliser l’accueil"}).click();
