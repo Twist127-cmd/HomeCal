@@ -4,7 +4,7 @@ import { useApp } from "@/components/app/AppProvider";
 import { HomeScreen } from "@/components/app/HomeScreen";
 import { LoginScreen } from "@/components/auth/LoginScreen";
 import { Onboarding } from "@/components/auth/Onboarding";
-import { Spinner } from "@/components/ui/primitives";
+import { Skeleton } from "@/components/ui/primitives";
 
 export default function Page() {
   const { status, error } = useApp();
@@ -37,7 +37,7 @@ export default function Page() {
     default:
       return (
         <main className="flex h-full items-center justify-center text-muted">
-          <Spinner size={28} />
+          <div className="w-full max-w-4xl space-y-6 px-6" role="status" aria-label="Chargement de HomeCal"><Skeleton className="h-12 w-48" /><Skeleton className="h-6 w-64" /><div className="grid gap-4 sm:grid-cols-2"><Skeleton className="h-48" /><Skeleton className="h-48" /></div></div>
         </main>
       );
   }

@@ -49,6 +49,8 @@ export function MonthView({
               role="button"
               tabIndex={0}
               onClick={() => onDay(d)}
+              onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onDay(d); } }}
+              aria-label={format(d, "EEEE d MMMM yyyy", { locale: fr })}
               className={clsx(
                 "min-h-0 overflow-hidden border-r border-b border-border p-1 text-left transition hover:bg-surface-2/60",
                 !isSameMonth(d, anchor) && "bg-surface-2/40 text-muted",

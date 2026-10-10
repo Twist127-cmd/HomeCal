@@ -70,6 +70,7 @@ function ThemePicker() {
     }
     const dark = t === "dark" || (t === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches);
     document.documentElement.classList.toggle("dark", dark);
+    window.dispatchEvent(new Event("homecal:appearance"));
   };
   return (
     <Field label="Thème (sur cet appareil)">

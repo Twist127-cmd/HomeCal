@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { CalendarDays, CalendarSearch, Ellipsis, Music2, Plus, Settings, ShoppingCart, Sparkles, Sun, Timer as TimerIcon, Wand2 } from "lucide-react";
+import { CalendarDays, CalendarSearch, Ellipsis, Home, Music2, Plus, Settings, ShoppingCart, Sparkles, Sun, Timer as TimerIcon, Wand2 } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useApp } from "@/components/app/AppProvider";
@@ -71,57 +71,30 @@ export function DesktopTools({ panel, onPanel, onAvailability }: { panel: PanelI
 
 export type MobileTab = "today" | "calendar";
 
-/** Phone: bottom navigation (max two taps to any main feature). */
-export function BottomNav({
-  tab,
-  panel,
-  onTab,
-  onAdd,
-  onPanel,
-}: {
-  tab: MobileTab;
-  panel: PanelId | null;
-  onTab(t: MobileTab): void;
-  onAdd(): void;
-  onPanel(p: PanelId | null): void;
+/** Floating tablet dock; the compact phone version keeps secondary tools in Plus. */
+export function BottomNav({ tab, panel, onTab, onAdd, onPanel }: {
+  tab: MobileTab; panel: PanelId | null; onTab(t: MobileTab): void; onAdd(): void; onPanel(p: PanelId | null): void;
 }) {
   const { timers, shopping } = useApp();
-  const badge = timers.filter((t) => t.status === "running").length + shopping.filter((s) => !s.checked).length;
-  const item = (active: boolean, label: string, icon: ReactNode, onClick: () => void, extra?: ReactNode) => (
-    <button
-      onClick={onClick}
-      className={clsx("relative flex min-w-0 flex-1 flex-col items-center gap-0.5 py-1.5 text-[11px] font-medium", active ? "text-accent" : "text-muted")}
-    >
-      {icon}
-      <span className="truncate">{label}</span>
-      {extra}
+  const running = features.timers ? timers.filter((t) => t.status === "running" || t.status === "paused").length : 0;
+  const toBuy = features.shopping ? shopping.filter((s) => !s.checked).length : 0;
+  const item = (active: boolean, label: string, icon: ReactNode, onClick: () => void, desktopOnly = false, badge = 0) => (
+    <button onClick={onClick} aria-label={label} aria-current={active ? "page" : undefined}
+      className={clsx("relative flex min-w-0 flex-col items-center justify-center gap-1 px-1 text-[10px] font-medium transition sm:text-[11px]", desktopOnly && "hidden sm:flex", active ? "bg-accent-soft text-accent" : "text-muted hover:bg-surface-2 hover:text-text")}>
+      <span className="relative">{icon}<Badge n={badge} /></span><span className="max-w-full truncate">{label}</span>
     </button>
   );
-  return (
-    <nav className="safe-bottom flex shrink-0 items-end border-t border-border bg-bg/95 px-2 pt-1 backdrop-blur md:hidden">
-      {item(tab === "today" && !panel, "Aujourd'hui", <Sun size={22} />, () => {
-        onPanel(null);
-        onTab("today");
-      })}
-      {item(tab === "calendar" && !panel, "Calendrier", <CalendarDays size={22} />, () => {
-        onPanel(null);
-        onTab("calendar");
-      })}
-      <div className="flex flex-1 justify-center">
-        <button
-          onClick={onAdd}
-          className="-mt-5 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-white shadow-pop transition active:scale-95 dark:text-black"
-          aria-label="Ajouter ou demander"
-        >
-          <Plus size={28} />
-        </button>
-      </div>
-      {features.spotify
-        ? item(panel === "music", "Musique", <Music2 size={22} />, () => onPanel(panel === "music" ? null : "music"))
-        : item(false, "Assistant", <Sparkles size={22} />, onAdd)}
-      {item(panel === "more", "Plus", <Ellipsis size={22} />, () => onPanel(panel === "more" ? null : "more"), badge ? <span className="absolute top-1 right-[30%] h-2 w-2 rounded-full bg-accent" /> : null)}
-    </nav>
-  );
+  const toggle = (p: PanelId) => onPanel(panel === p ? null : p);
+  return <div className="home-dock-wrap"><nav className="home-dock" aria-label="Navigation principale">
+    {item(tab === "today" && !panel, "Aujourd’hui", <Sun size={21} />, () => { onPanel(null); onTab("today"); })}
+    {item(tab === "calendar" && !panel, "Calendrier", <CalendarDays size={21} />, () => { onPanel(null); onTab("calendar"); })}
+    {features.spotify && item(panel === "music", "Musique", <Music2 size={21} />, () => toggle("music"))}
+    {features.scenes && item(panel === "scenes", "Maison", <Home size={21} />, () => toggle("scenes"), true)}
+    {features.shopping && item(panel === "shopping", "Courses", <ShoppingCart size={21} />, () => toggle("shopping"), false, toBuy)}
+    {item(false, "Ajouter", <Plus size={21} />, onAdd)}
+    <Link href="/settings" aria-label="Réglages" className="hidden flex-col items-center justify-center gap-1 text-[11px] font-medium text-muted hover:bg-surface-2 sm:flex"><Settings size={21} />Réglages</Link>
+    {item(panel === "more", "Plus", <Ellipsis size={21} />, () => toggle("more"), false, running)}
+  </nav></div>;
 }
 
 /** "Plus" menu content (phone). */

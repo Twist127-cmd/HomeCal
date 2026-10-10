@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Mic, Play } from "lucide-react";
+import { AudioLines, Bell, Mic, Play } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useApp } from "@/components/app/AppProvider";
 import { Button, Chip, Field, inputClass, Toggle } from "@/components/ui/primitives";
@@ -70,7 +70,7 @@ function VoicePicker({ v, upd, assistantName }: { v: VoiceSettings; upd(p: Parti
 
   return (
     <div className="space-y-4 rounded-2xl bg-surface-2 p-4">
-      <div className="font-medium">Voix de {assistantName}</div>
+      <div className="flex items-center gap-3"><span className="assistant-orb !h-12 !w-12"><AudioLines size={22} /></span><div><p className="font-medium">Voix de {assistantName}</p><p className="mt-1 text-xs text-muted">{fallbackName?.name || "Voix de l’appareil"}</p></div></div>
       <Field
         label="Voix"
         hint={

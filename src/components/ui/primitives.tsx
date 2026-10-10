@@ -44,7 +44,7 @@ export function Chip({
       {...props}
       style={active && color ? { backgroundColor: color, borderColor: color } : undefined}
       className={clsx(
-        "inline-flex h-10 shrink-0 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition active:scale-[0.97]",
+        "inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition active:scale-[0.97]",
         active ? (color ? "text-white" : "bg-text text-bg border-text") : "border-border bg-surface hover:bg-surface-2",
         className,
       )}
@@ -140,7 +140,7 @@ export const inputClass =
 
 export function Toggle({ checked, onChange, label }: { checked: boolean; onChange(v: boolean): void; label: ReactNode }) {
   return (
-    <button type="button" onClick={() => onChange(!checked)} className="flex w-full items-center justify-between gap-4 py-2 text-left">
+    <button type="button" role="switch" aria-checked={checked} onClick={() => onChange(!checked)} className="flex min-h-11 w-full items-center justify-between gap-4 py-2 text-left">
       <span className="text-[15px]">{label}</span>
       <span className={clsx("relative h-7 w-12 shrink-0 rounded-full transition", checked ? "bg-accent" : "bg-surface-3")}>
         <span className={clsx("absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition", checked ? "left-[22px]" : "left-0.5")} />
@@ -150,7 +150,7 @@ export function Toggle({ checked, onChange, label }: { checked: boolean; onChang
 }
 
 export function Card({ className, children }: { className?: string; children: ReactNode }) {
-  return <div className={clsx("rounded-[var(--radius-card)] border border-border bg-surface shadow-card", className)}>{children}</div>;
+  return <div className={clsx("glass-panel", className)}>{children}</div>;
 }
 
 export function Spinner({ size = 18 }: { size?: number }) {
@@ -160,4 +160,8 @@ export function Spinner({ size = 18 }: { size?: number }) {
       style={{ width: size, height: size }}
     />
   );
+}
+
+export function Skeleton({ className }: { className?: string }) {
+  return <div className={clsx("skeleton", className)} aria-hidden="true" />;
 }

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Appearance } from "@/components/app/Appearance";
 import { AppProvider } from "@/components/app/AppProvider";
 import { ServiceWorker } from "@/components/app/ServiceWorker";
 import { MusicContextProvider } from "@/components/music/MusicContext";
@@ -37,13 +38,13 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f5f4f0" },
-    { media: "(prefers-color-scheme: dark)", color: "#0b0c0f" },
+    { media: "(prefers-color-scheme: light)", color: "#f4eee5" },
+    { media: "(prefers-color-scheme: dark)", color: "#191a1c" },
   ],
 };
 
 // Apply the theme before first paint (avoids a light flash on the kiosk at night)
-const themeScript = `(function(){try{var t=localStorage.getItem('homecal.theme')||'auto';var d=t==='dark'||(t==='auto'&&matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.documentElement.classList.add('dark');}catch(e){}})();`;
+const themeScript = `(function(){try{var h=new Date().getHours();document.documentElement.dataset.period=h<6||h>=23?'night':h<11?'morning':h<18?'day':'evening';var t=localStorage.getItem('homecal.theme')||'auto';var d=t==='dark'||(t==='auto'&&matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.documentElement.classList.add('dark');}catch(e){}})();`;
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
@@ -52,6 +53,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="h-full">
+        <Appearance />
         <AppProvider>
           <MusicContextProvider>
             <SceneProvider>

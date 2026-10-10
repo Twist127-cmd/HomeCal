@@ -9,7 +9,7 @@ import { Toaster } from "@/components/ui/toast";
 import { visibleSections, type SettingsSectionDef } from "./sections";
 
 /**
- * Settings, Windows-like: categories on the left, the active category on the right
+ * Settings: categories on the left, the active category on the right
  * (tablet / desktop, ≥ md). On phones: the category list first, then the section with a
  * back button. The active section lives in the URL hash (#voix) so it survives a refresh.
  */
@@ -39,7 +39,7 @@ export function SettingsScreen() {
   const active = selected ?? sections[0];
 
   return (
-    <div className="safe-top flex h-full flex-col">
+    <div className="settings-shell safe-top flex h-full flex-col">
       <header className="mx-auto flex w-full max-w-6xl shrink-0 items-center gap-3 px-4 pb-4">
         {/* phone, inside a section: back to the category list */}
         {selected ? (
@@ -62,7 +62,7 @@ export function SettingsScreen() {
 
       <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 gap-6 px-4">
         {/* ---- sidebar (tablet / desktop) ---- */}
-        <nav aria-label="Catégories de réglages" className="scroll-thin hidden w-60 shrink-0 overflow-y-auto pb-6 md:block lg:w-64">
+        <nav aria-label="Catégories de réglages" className="settings-sidebar scroll-thin hidden w-60 shrink-0 overflow-y-auto pb-6 md:block lg:w-64">
           <ul className="space-y-1">
             {sections.map((s) => (
               <li key={s.id}>

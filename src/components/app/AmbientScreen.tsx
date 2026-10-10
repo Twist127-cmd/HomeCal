@@ -1,5 +1,7 @@
 "use client";
 
+import { greeting } from "@/lib/appearance";
+import { WeatherIcon } from "@/components/ui/WeatherIcon";
 import { Car, MapPin, Pause, Play, SkipForward, Timer as TimerIcon } from "lucide-react";
 import { useApp } from "@/components/app/AppProvider";
 import { useMusic } from "@/components/music/MusicContext";
@@ -16,31 +18,34 @@ import { describeWeather } from "@/providers/weather/WeatherProvider";
 
 /** Full-screen clock + next events, shown after inactivity (kiosk). Tap to leave. */
 export function AmbientScreen({ now, night, onWake }: { now: Date; night: boolean; onWake(): void }) {
-  const { events, profiles } = useApp();
+  const { events, profiles, homePlace } = useApp();
   const forecast = useForecast();
   const upcoming = expandEvents(events, now, addDays(startOfDay(now), 3)).filter((o) => o.end > now);
   const next = upcoming.find((o) => !o.event.allDay) ?? upcoming[0];
-  const todayAndTomorrow = upcoming.slice(0, 6);
+  const todayAndTomorrow = upcoming.slice(0, 3);
   const cur = forecast?.current;
   const w = cur ? describeWeather(cur.weatherCode, cur.isDay) : null;
   const today = forecast?.daily[0];
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex animate-fade-in cursor-pointer flex-col bg-bg p-8 select-none sm:p-14"
+      className="fixed inset-0 z-[70] ambient-shell flex animate-fade-in cursor-pointer flex-col overflow-y-auto p-6 select-none sm:p-14"
       onClick={onWake}
       role="button"
-      aria-label="Revenir au calendrier"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onWake(); } }}
+      aria-label="Revenir à l’accueil"
     >
       <div className="flex flex-1 flex-col justify-between gap-10 lg:flex-row lg:items-end">
         <div>
-          <div className={`tabular leading-none font-semibold tracking-tight ${night ? "text-[22vw] lg:text-[16vw] opacity-80" : "text-[24vw] lg:text-[14vw]"}`}>
+          <p className="mb-5 text-2xl font-medium">{greeting(now.getHours())}</p>
+          <div className={`tabular leading-none font-normal tracking-tight ${night ? "text-[22vw] lg:text-[16vw] opacity-80" : "text-[24vw] lg:text-[14vw]"}`}>
             {fmt(now, "HH:mm")}
           </div>
           <div className="mt-2 text-3xl font-medium text-muted sm:text-4xl">{capitalize(fmt(now, "EEEE d MMMM"))}</div>
           {w && cur && (
             <div className="mt-6 flex items-center gap-4 text-2xl sm:text-3xl">
-              <span className="text-5xl">{w.emoji}</span>
+              <WeatherIcon code={cur.weatherCode} isDay={cur.isDay} size={44} />
               <span className="tabular font-semibold">{Math.round(cur.temperature)}°</span>
               <span className="text-muted">
                 {w.label}
@@ -48,6 +53,7 @@ export function AmbientScreen({ now, night, onWake }: { now: Date; night: boolea
               </span>
             </div>
           )}
+          {homePlace && <p className="mt-3 text-sm text-muted">{homePlace.name}</p>}
           <AmbientExtras />
         </div>
 
@@ -57,7 +63,7 @@ export function AmbientScreen({ now, night, onWake }: { now: Date; night: boolea
             <div className="space-y-2">
               {todayAndTomorrow
                 .filter((o) => o !== next)
-                .slice(0, 4)
+                .slice(0, 2)
                 .map((o) => (
                   <div key={o.key} className="flex items-center gap-4 rounded-2xl bg-surface/70 px-4 py-3 text-lg">
                     <span className="h-8 w-1.5 rounded-full" style={{ backgroundColor: profileColor(o.event.profileIds, profiles) }} />
@@ -73,7 +79,7 @@ export function AmbientScreen({ now, night, onWake }: { now: Date; night: boolea
           </div>
         )}
       </div>
-      <p className="mt-8 text-center text-sm text-muted">Touchez l&apos;écran pour revenir au calendrier</p>
+      <p className="mt-8 text-center text-sm text-muted">Touchez l&apos;écran pour revenir à l’accueil</p>
     </div>
   );
 }
@@ -124,7 +130,7 @@ function NextEvent({ occ, upcoming, now }: { occ: Occurrence; upcoming: Occurren
   const inMin = Math.round((occ.start.getTime() - now.getTime()) / 60000);
   const color = profileColor(occ.event.profileIds, profiles);
   return (
-    <div className="rounded-[1.75rem] p-6 text-white shadow-pop" style={{ background: `linear-gradient(135deg, ${color}, color-mix(in srgb, ${color} 60%, black))` }}>
+    <div className="glass-panel p-6" style={{ borderLeft: `3px solid color-mix(in srgb, ${color} 45%, var(--color-border))` }}>
       <div className="text-sm font-medium tracking-wide uppercase opacity-80">
         {occ.start <= now ? "En cours" : inMin < 60 ? `Dans ${inMin} min` : `Prochain · ${fmtRelativeDay(occ.start, now)}`}
       </div>
@@ -138,7 +144,7 @@ function NextEvent({ occ, upcoming, now }: { occ: Occurrence; upcoming: Occurren
         )}
       </div>
       {travel && (
-        <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-2 text-lg font-medium">
+        <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-accent-soft text-accent px-4 py-2 text-lg font-medium">
           <Car size={20} /> Départ à {fmtTime(travel.departAt)} · {travel.route.durationMin} min
         </div>
       )}
