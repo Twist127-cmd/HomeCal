@@ -105,12 +105,22 @@ export async function spotifyFetch<T>(token: string, method: string, path: strin
   try { json = text ? JSON.parse(text) as Record<string, unknown> : null; } catch { /* Some Spotify errors return plain text. */ }
   if (res.ok) return json as T;
 
-  const err = (json?.error ?? {}) as { message?: string; reason?: string };
+  const rawError = json?.error;
+  const err = (rawError && typeof rawError === "object" ? rawError : {}) as { message?: string; reason?: string };
+  const detail = typeof err.message === "string" ? err.message
+    : typeof rawError === "string" ? rawError
+    : typeof json === "string" ? json
+    : !json && !/^\s*</.test(text) ? text.trim() : "";
+  // Spotify can return plain text (notably account-access refusals). Never echo credentials.
+  const safeDetail = detail.split(token).join("[redacted]").slice(0, 400);
+  const accountDenied = /not registered|not authorized|not authorised|developer dashboard|user.*not.*(allow|register)/i.test(safeDetail);
   // Log only public application metadata and status; never tokens, headers or user data.
   console.warn("[spotify:upstream]", JSON.stringify({
     method, endpoint: path.split("?")[0], status: res.status,
     reason: typeof err.reason === "string" ? err.reason.slice(0, 80) : null,
-    insufficientScope: /insufficient.*scope/i.test(`${err.message ?? ""} ${res.headers.get("www-authenticate") ?? ""}`),
+    accountDenied,
+    responseFormat: json ? "json" : text.trim() ? "text" : "empty",
+    insufficientScope: /insufficient.*scope/i.test(`${safeDetail} ${res.headers.get("www-authenticate") ?? ""}`),
     clientId: spotifyConfig.clientId(),
   }));
   if (res.status === 401) throw new SpotifyApiError("AUTH_EXPIRED", err.message ?? "Token expiré", 401);
@@ -118,14 +128,14 @@ export async function spotifyFetch<T>(token: string, method: string, path: strin
     const seconds = Number(res.headers.get("Retry-After"));
     throw new SpotifyApiError("RATE_LIMITED", "Trop de demandes", 429, Number.isFinite(seconds) && seconds > 0 ? seconds : 30);
   }
-  if (res.status === 403 && (err.reason === "PREMIUM_REQUIRED" || /premium/i.test(err.message ?? ""))) {
+  if (res.status === 403 && (err.reason === "PREMIUM_REQUIRED" || /premium/i.test(safeDetail))) {
     throw new SpotifyApiError("PREMIUM_REQUIRED", "Spotify Premium requis", 403);
   }
   if (res.status === 403) {
-    const scope = /insufficient.*scope/i.test(`${err.message ?? ""} ${res.headers.get("www-authenticate") ?? ""}`);
+    const scope = /insufficient.*scope/i.test(`${safeDetail} ${res.headers.get("www-authenticate") ?? ""}`);
     throw new SpotifyApiError(scope ? "SCOPE_REQUIRED" : "ACCESS_DENIED", scope
       ? "Spotify refuse les permissions : reconnectez Spotify pour les accorder."
-      : `Spotify refuse l’accès (403, ${path.split("?")[0]}).${err.message ? ` ${err.message}` : ""}`, 403);
+      : `Spotify refuse l’accès (403, ${path.split("?")[0]}).${safeDetail ? ` ${safeDetail}` : ""}`, 403);
   }
   if (res.status === 404 && (err.reason === "NO_ACTIVE_DEVICE" || /device/i.test(err.message ?? ""))) {
     throw new SpotifyApiError("NO_DEVICE", "Aucun appareil actif", 404);

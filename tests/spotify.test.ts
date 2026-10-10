@@ -34,6 +34,12 @@ describe("Spotify throttling", () => {
     await expect(spotifyFetch("secret-token", "GET", "/me/playlists?limit=50")).rejects.toMatchObject({ code: "ACCESS_DENIED", status: 403, message: expect.stringContaining("/me/playlists") });
     expect(JSON.stringify(warning.mock.calls)).not.toContain("secret-token");
   });
+
+  it("preserves Spotify's plain-text account refusal without exposing the token", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("User not registered in the Developer Dashboard secret-token", { status: 403 })));
+    await expect(spotifyFetch("secret-token", "GET", "/me")).rejects.toMatchObject({ message: "Spotify refuse l’accès (403, /me). User not registered in the Developer Dashboard [redacted]" });
+  });
   it("preserves Retry-After even for a non-JSON Spotify response", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("Too many requests", { status: 429, headers: { "Retry-After": "90" } })));
     await expect(spotifyFetch("test", "PUT", "/me/player/play")).rejects.toMatchObject({ code: "RATE_LIMITED", status: 429, retryAfter: 90 });
