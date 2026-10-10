@@ -416,10 +416,7 @@ export function HomeScreen() {
         onTab={(t) => {
           setMobileTab(t);
           setCustomizing(false);
-          if (t === "today") {
-            setAnchor(startOfDay(new Date()));
-            setView("agenda");
-          } else setView(view === "agenda" ? "month" : view);
+          if (t === "calendar" && viewChoice === null && isMobile) setView("month");
         }}
         onAdd={() => setAddSheet(true)}
         onPanel={openPanel}
