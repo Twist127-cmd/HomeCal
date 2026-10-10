@@ -118,6 +118,7 @@ try {
   await page.goto("http://127.0.0.1:4173");
   await page.getByRole("heading",{level:1}).waitFor();
   await page.screenshot({path:out+"/"+size.name+"-"+theme+"-"+period+".png",fullPage:true});
+  if((size.name==="tablet-landscape"&&theme==="light"&&period==="day")||(size.name==="desktop"&&theme==="dark"&&period==="evening")||(size.name==="phone"&&theme==="dark"&&period==="morning")) console.log("VISUAL_REVIEW:"+size.name+":"+(await page.screenshot({type:"jpeg",quality:55})).toString("base64"));
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,"horizontal overflow: "+size.name+" "+theme+" "+period);
   const overflow=await page.locator(".home-widget").evaluateAll(elements=>elements.filter(el=>el.scrollWidth>el.clientWidth+1).map(el=>el.getAttribute("data-widget")));
   assert.deepEqual(overflow,[],"card overflow: "+size.name);
