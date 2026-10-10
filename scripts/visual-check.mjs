@@ -102,7 +102,7 @@ const mono=nextCss.match(/--font-geist-mono:([^;}]+)/)?.[1] || "ui-monospace";
 await writeFile(out+"/style.css", nextCss+"\n:root{--font-geist-sans:"+sans+";--font-geist-mono:"+mono+";}");
 await writeFile(out+"/index.html",'<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"></head><body><div id="root"></div><script src="/app.js"></script></body></html>');
 const server=createServer(async(req,res)=>{
- try{const url=new URL(req.url,"http://localhost");const file=url.pathname==="/app.js"||url.pathname==="/style.css"?out+url.pathname:url.pathname.startsWith("/_next/static/")?resolve(".next/static",url.pathname.slice(14)):url.pathname.startsWith("/ambience/")?resolve("public",url.pathname.slice(1)):out+"/index.html";res.setHeader("Content-Type",file.endsWith(".js")?"application/javascript; charset=utf-8":file.endsWith(".css")?"text/css; charset=utf-8":file.endsWith(".svg")?"image/svg+xml":file.endsWith(".woff2")?"font/woff2":"text/html; charset=utf-8");res.end(await readFile(file))}catch{res.statusCode=404;res.end()}
+ try{const url=new URL(req.url,"http://localhost");const file=url.pathname==="/app.js"||url.pathname==="/style.css"?out+url.pathname:url.pathname.startsWith("/media/")?resolve(".next/static",url.pathname.slice(1)):url.pathname.startsWith("/_next/static/")?resolve(".next/static",url.pathname.slice(14)):url.pathname.startsWith("/ambience/")?resolve("public",url.pathname.slice(1)):out+"/index.html";res.setHeader("Content-Type",file.endsWith(".js")?"application/javascript; charset=utf-8":file.endsWith(".css")?"text/css; charset=utf-8":file.endsWith(".svg")?"image/svg+xml":file.endsWith(".woff2")?"font/woff2":"text/html; charset=utf-8");res.end(await readFile(file))}catch{res.statusCode=404;res.end()}
 });
 await new Promise(r=>server.listen(4173,"127.0.0.1",r));
 const browser=await chromium.launch({headless:true});
@@ -118,6 +118,7 @@ try {
   await page.addInitScript(({theme,period})=>{localStorage.setItem("homecal.theme",theme);document.addEventListener("DOMContentLoaded",()=>{document.documentElement.classList.toggle("dark",theme==="dark");document.documentElement.dataset.period=period},{once:true})},{theme,period});
   await page.goto("http://127.0.0.1:4173");
   await page.getByRole("heading",{level:1}).waitFor({timeout:10000}).catch(async e=>{await page.screenshot({path:out+"/failed-screen.png"});console.log("BROWSER_HTML:"+await page.content());throw e});
+  await page.evaluate(()=>document.fonts.ready);
   await page.screenshot({path:out+"/"+size.name+"-"+theme+"-"+period+".png",fullPage:true});
   if((size.name==="tablet-landscape"&&theme==="light"&&period==="day")||(size.name==="desktop"&&theme==="dark"&&period==="evening")||(size.name==="phone"&&theme==="dark"&&period==="morning")) console.log("VISUAL_REVIEW:"+size.name+":"+(await page.screenshot({type:"jpeg",quality:55})).toString("base64"));
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,"horizontal overflow: "+size.name+" "+theme+" "+period);
