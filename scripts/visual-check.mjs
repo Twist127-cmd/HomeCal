@@ -111,7 +111,7 @@ try {
   const page=await context.newPage();
   page.on("pageerror",e=>errors.push(e.message));
   await page.clock.install({time:new Date(2026,3,26,hour,42)});
-  await page.addInitScript(({theme,period})=>{localStorage.setItem("homecal.theme",theme);document.documentElement.classList.toggle("dark",theme==="dark");document.documentElement.dataset.period=period},{theme,period});
+  await page.addInitScript(({theme,period})=>{localStorage.setItem("homecal.theme",theme);document.addEventListener("DOMContentLoaded",()=>{document.documentElement.classList.toggle("dark",theme==="dark");document.documentElement.dataset.period=period},{once:true})},{theme,period});
   await page.goto("http://127.0.0.1:4173");
   await page.getByRole("heading",{level:1}).waitFor();
   await page.screenshot({path:out+"/"+size.name+"-"+theme+"-"+period+".png",fullPage:true});
@@ -130,6 +130,7 @@ try {
  await page.getByRole("button",{name:"Terminer",exact:true}).click();
  assert.equal(await page.locator('[data-widget="shopping"]').count(),0);
  await page.reload();
+ await page.getByRole("heading",{level:1}).waitFor();
  assert.equal(await page.locator('[data-widget="shopping"]').count(),0);
  await page.getByRole("button",{name:"Personnaliser l’accueil"}).click();
  await page.getByRole("button",{name:"Restaurer la disposition"}).click();

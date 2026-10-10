@@ -219,7 +219,7 @@ export function HomeScreen() {
     <div className="home-shell flex h-dvh flex-col overflow-hidden">
       {showHome ? (
         <main className="scroll-thin min-h-0 flex-1 overflow-y-auto">
-          <TodayDashboard key={householdId} now={now} next={next} departure={departure} today={today.occurrences} editing={customizing} onEditing={setCustomizing} onEvent={setDetail} onPanel={openPanel} onAssistant={() => setAssistant({ open: true, listen: true })} onCalendar={() => { setMobileTab("calendar"); setCustomizing(false); }} />
+          <TodayDashboard key={householdId} now={now} next={today.occurrences.find((o) => o.end > now) ?? next} departure={departure} today={today.occurrences} editing={customizing} onEditing={setCustomizing} onEvent={setDetail} onPanel={openPanel} onAssistant={() => setAssistant({ open: true, listen: true })} onCalendar={() => { setMobileTab("calendar"); setCustomizing(false); }} />
         </main>
       ) : (
       <>

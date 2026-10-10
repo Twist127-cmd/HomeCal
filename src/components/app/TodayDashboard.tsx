@@ -71,7 +71,7 @@ export function TodayDashboard({ now, next, departure, today, editing, onEditing
             <span className="min-w-0 flex-1 break-words text-2xl font-medium tracking-tight sm:text-3xl">{next.event.title}</span><ChevronRight size={22} className="shrink-0 text-muted" />
           </button>
           {next.event.location && <p className="mt-3 flex items-start gap-2 text-sm text-muted"><MapPin size={16} className="mt-0.5 shrink-0" /><span>{next.event.location.address || next.event.location.label}</span></p>}
-          {departure?.travel && departure.occ.key === next.key && <div className="mt-5"><DeparturePill departure={departure} /></div>}
+          {departure?.travel && <div className="mt-5 space-y-2"><p className="text-sm text-muted">Départ conseillé <span className="tabular font-medium text-text">{fmtTime(departure.travel.departAt)}</span> · {departure.travel.route.durationMin} min de trajet{departure.occ.key !== next.key && <span className="block mt-1">{departure.occ.event.title}</span>}</p><DeparturePill departure={departure} /></div>}
           <button onClick={onCalendar} className="mt-5 inline-flex min-h-11 items-center gap-2 text-sm font-medium text-accent">Voir le programme <ChevronRight size={16} /></button>
         </div>
       ) : (
