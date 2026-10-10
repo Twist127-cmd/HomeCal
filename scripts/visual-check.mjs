@@ -22,7 +22,7 @@ const occ = { key: "event", event, start, end };
 const travel = { origin:{label:"Maison",lat:45.75,lng:4.85}, route:{mode:"driving",durationMin:20,distanceKm:4}, marginMin:10, departAt:new Date(start.getTime()-1800000) };
 const voices = [{ name:"Voix française de test",voiceURI:"fixture-fr",lang:"fr-FR",localService:true,default:true }];
 export const app = {
- status:"ready", householdId:"fixture", household:{id:"fixture",name:"La maison",ownerUid:"fixture",memberUids:["fixture"],settings:{...DEFAULT_SETTINGS,ambientAfterSec:0,nightMode:{enabled:false,start:"22:30",end:"06:30"}}},
+ status:"ready", household:{id:"fixture",name:"La maison",ownerUid:"fixture",memberUids:["fixture"],settings:{...DEFAULT_SETTINGS,ambientAfterSec:0,nightMode:{enabled:false,start:"22:30",end:"06:30"}}},
  householdId:"fixture", user:{uid:"fixture",email:"fixture@example.test"}, myProfileId:"emma",
  profiles:[{id:"emma",name:"Emma",avatar:"E",color:"#857c9e",type:"PERSON",memberIds:[],order:0}],
  events:[event],reminders:[],history:[],places:[], homePlace:{id:"home",name:"Lyon",address:"Lyon",lat:45.75,lng:4.85,icon:"",profileIds:[],order:0},
@@ -52,7 +52,7 @@ const mocks = {
  "@/components/scenes/SceneContext": 'import {scenes,hook} from "@fixture"; export function useScenes(){hook();return scenes()}',
  "@/components/voice/VoiceContext": 'import {voice,hook} from "@fixture"; export function useVoice(){hook();return voice}',
  "@/hooks/useModules": 'import {stores} from "@fixture"; export function useModuleStores(){return stores}',
- "@/hooks/useWeather": 'import {forecast} from "@fixture"; export function useForecast(){return forecast}',
+ "@/hooks/useWeather": 'import {forecast} from "@fixture"; export function useForecast(){return forecast} export function useEventWeather(){return null}',
  "@/hooks/useTravel": 'import {departure} from "@fixture"; export function useTravel(occ){return occ ? departure.travel : null}',
  "@/hooks/useNextDeparture": 'import {departure} from "@fixture"; export function useNextDeparture(){return {next:departure.occ,departure}}',
  "@/lib/firebase/client": 'export const firebaseConfigured=false; export const firestore=()=>({}); export const auth=()=>({});',
