@@ -61,6 +61,7 @@ const mocks = {
 const fixture = `
 import {useEffect,useState} from "react";
 import {createRoot} from "react-dom/client";
+import {AmbientScreen} from "@/components/app/AmbientScreen";
 import {Appearance} from "@/components/app/Appearance";
 import {HomeScreen} from "@/components/app/HomeScreen";
 import {SettingsScreen} from "@/components/settings/SettingsScreen";
@@ -70,6 +71,7 @@ function Fixture(){
  const [path,setPath]=useState(location.pathname);
  useEffect(()=>{const change=()=>setPath(location.pathname);addEventListener("popstate",change);return()=>removeEventListener("popstate",change)},[]);
  useEffect(()=>{const clock=setInterval(()=>{const h=new Date().getHours();document.documentElement.dataset.period=h<6||h>=23?"night":h<11?"morning":h<18?"day":"evening"},60000);return()=>clearInterval(clock)},[]);
+ if(new URLSearchParams(location.search).has("ambient")) return <><Appearance/><AmbientScreen now={new Date()} night={false} onWake={()=>location.assign("/")}/></>;
  return <><Appearance/>{path==="/settings"?<SettingsScreen/>:<HomeScreen/>}<VoiceOverlay/></>;
 }
 window.fixtureApp=app;
@@ -160,8 +162,26 @@ try {
  await page.getByRole("link",{name:"Réglages",exact:true}).click();
  await page.getByRole("button",{name:"Affichage",exact:true}).click();
  await page.screenshot({path:out+"/settings.png"});
+ await page.getByRole("button",{name:"Voix et notifications",exact:true}).click();
+ await page.getByRole("button",{name:"Tester la voix",exact:true}).waitFor();
+ await page.screenshot({path:out+"/voice.png"});
+ await page.getByRole("link",{name:"Retour",exact:true}).click();
+ for(const [name,file] of [["Matin","morning"],["Soir","evening"]]) {
+  await page.getByRole("button",{name:"Maison",exact:true}).click();
+  await page.getByRole("button",{name:"Activer "+name,exact:true}).click();
+  await page.getByRole("button",{name:"Quitter la scène"}).waitFor();
+  await page.screenshot({path:out+"/scene-"+file+".png"});
+  await page.getByRole("button",{name:"Quitter la scène"}).click();
+ }
+ await page.getByRole("button",{name:/Un mot, et c’est fait/}).click();
+ await page.getByRole("button",{name:"Parler",exact:true}).waitFor();
+ await page.screenshot({path:out+"/assistant.png"});
+ await page.goto("http://127.0.0.1:4173/?ambient=1");
+ await page.getByRole("button",{name:"Revenir à l’accueil",exact:true}).waitFor();
+ await page.screenshot({path:out+"/ambient.png"});
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,"ambient horizontal overflow");
  assert.deepEqual(errors,[],"browser errors");
  await context.close();
- await writeFile(out+"/report.json",JSON.stringify({screenshots:35,viewports:sizes,themes:2,periods:4,checks:["no document/card overflow","persist hidden widgets","restore layout","pause/resume/stop timer","calendar navigation","kitchen scene","settings navigation"],browserErrors:errors},null,2));
- console.log("PASS: 32 home combinations + calendar, kitchen, settings; layout persistence, timer controls and navigation.");
+ await writeFile(out+"/report.json",JSON.stringify({screenshots:40,viewports:sizes,themes:2,periods:4,checks:["no document/card overflow","persist hidden widgets","restore layout","pause/resume/stop timer","calendar navigation","kitchen scene","settings navigation","device voice picker","morning/evening scenes","assistant orb","ambient mode"],browserErrors:errors},null,2));
+ console.log("PASS: 32 home combinations + calendar, all scenes, settings, voice, assistant and ambient; layout persistence, timer controls and navigation.");
 } finally { await browser.close();server.close(); }
