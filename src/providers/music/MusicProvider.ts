@@ -48,6 +48,8 @@ export type MusicErrorCode =
   | "PREMIUM_REQUIRED"
   | "NO_DEVICE"
   | "RATE_LIMITED"
+  | "ACCESS_DENIED"
+  | "SCOPE_REQUIRED"
   | "OFFLINE"
   | "UNKNOWN";
 
@@ -68,6 +70,8 @@ export const MUSIC_ERROR_TEXT: Record<MusicErrorCode, string> = {
   PREMIUM_REQUIRED: "Spotify Premium est nécessaire pour contrôler la lecture.",
   NO_DEVICE: "Aucun appareil Spotify actif : ouvrez Spotify sur un téléphone, un ordinateur ou une enceinte.",
   RATE_LIMITED: "Spotify reçoit trop de demandes, réessayez dans un instant.",
+  ACCESS_DENIED: "Spotify refuse l’accès à cette opération (403).",
+  SCOPE_REQUIRED: "Reconnectez Spotify pour accorder les permissions nécessaires.",
   OFFLINE: "Connexion requise.",
   UNKNOWN: "Spotify ne répond pas.",
 };

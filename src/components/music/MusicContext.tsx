@@ -153,7 +153,7 @@ export function MusicContextProvider({ children }: { children: ReactNode }) {
       enabled: features.spotify,
       connected,
       accountName: spotify?.name,
-      premium: spotify?.product ? spotify.product === "premium" : null,
+      premium: spotify?.product === "premium" ? true : spotify?.product === "free" || spotify?.product === "open" ? false : null,
       playback,
       devices,
       playlists,

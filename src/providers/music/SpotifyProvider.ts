@@ -66,7 +66,7 @@ export class SpotifyProvider implements MusicProvider {
         throw new MusicError("RATE_LIMITED");
       }
       const code = json.code === "UNAUTHORIZED" ? "NOT_CONNECTED" : (json.code ?? "UNKNOWN");
-      throw new MusicError(code as MusicErrorCode, code === "UNKNOWN" ? json.error : undefined);
+      throw new MusicError(code as MusicErrorCode, code === "UNKNOWN" || code === "ACCESS_DENIED" || code === "SCOPE_REQUIRED" ? json.error : undefined);
     }
     return json.data as T;
   }

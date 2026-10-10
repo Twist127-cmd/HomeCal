@@ -101,6 +101,11 @@ export function MusicPanel({ compact }: { compact?: boolean }) {
 
   return (
     <div className={clsx("space-y-5", compact ? "p-4" : "p-5")}>
+      {m.error && <div role="alert" className="rounded-2xl bg-surface-2 p-3 text-sm text-warn">
+        <p>{m.error.message}</p>
+        {(m.error.code === "ACCESS_DENIED" || m.error.code === "SCOPE_REQUIRED" || m.error.code === "AUTH_EXPIRED") &&
+          <Button variant="ghost" onClick={m.connect} className="mt-2">Réautoriser Spotify</Button>}
+      </div>}
       {/* now playing */}
       <section className={clsx("flex gap-4", compact ? "flex-col items-center text-center" : "flex-col items-center text-center sm:flex-row sm:text-left")}>
         {p?.item?.image ? (

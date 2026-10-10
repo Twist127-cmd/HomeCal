@@ -8,7 +8,7 @@ const { music } = vi.hoisted(() => ({ music: {
   getRecent: vi.fn().mockResolvedValue([]),
   getDevices: vi.fn().mockResolvedValue([]),
 } }));
-vi.mock("@/components/app/AppProvider", () => ({ useApp: () => ({ music, spotify: { cipher: "sealed", name: "Test" }, user: { uid: "test" } }) }));
+vi.mock("@/components/app/AppProvider", () => ({ useApp: () => ({ music, spotify: { cipher: "sealed", name: "Test", product: "unknown" }, user: { uid: "test" } }) }));
 vi.mock("@/lib/features", () => ({ features: { spotify: true } }));
 vi.mock("@/components/ui/toast", () => ({ toast: vi.fn() }));
 vi.mock("@/lib/firebase/client", () => ({ firestore: vi.fn() }));
@@ -30,6 +30,7 @@ it("keeps panel loading callbacks stable after state updates, preventing request
     await act(async () => { await library(); await devices(); });
     expect(state.loadLibrary).toBe(library);
     expect(state.loadDevices).toBe(devices);
+    expect(state.premium).toBeNull();
     expect(music.getPlaylists).toHaveBeenCalledTimes(1);
     expect(music.getDevices).toHaveBeenCalledTimes(1);
   } finally {

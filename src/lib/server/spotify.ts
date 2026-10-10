@@ -29,7 +29,7 @@ export const spotifyConfig = {
 
 export class SpotifyApiError extends Error {
   constructor(
-    readonly code: "NOT_CONFIGURED" | "AUTH_EXPIRED" | "PREMIUM_REQUIRED" | "NO_DEVICE" | "RATE_LIMITED" | "UNKNOWN",
+    readonly code: "NOT_CONFIGURED" | "AUTH_EXPIRED" | "PREMIUM_REQUIRED" | "NO_DEVICE" | "RATE_LIMITED" | "ACCESS_DENIED" | "SCOPE_REQUIRED" | "UNKNOWN",
     message: string,
     readonly status = 400,
     readonly retryAfter?: number,
@@ -45,7 +45,7 @@ export function authorizeUrl(state: string): string {
     redirect_uri: spotifyConfig.redirectUri(),
     scope: SPOTIFY_SCOPES,
     state,
-    show_dialog: "false",
+    show_dialog: "true",
   });
   return `https://accounts.spotify.com/authorize?${p}`;
 }
@@ -106,6 +106,13 @@ export async function spotifyFetch<T>(token: string, method: string, path: strin
   if (res.ok) return json as T;
 
   const err = (json?.error ?? {}) as { message?: string; reason?: string };
+  // Log only public application metadata and status; never tokens, headers or user data.
+  console.warn("[spotify:upstream]", JSON.stringify({
+    method, endpoint: path.split("?")[0], status: res.status,
+    reason: typeof err.reason === "string" ? err.reason.slice(0, 80) : null,
+    insufficientScope: /insufficient.*scope/i.test(`${err.message ?? ""} ${res.headers.get("www-authenticate") ?? ""}`),
+    clientId: spotifyConfig.clientId(),
+  }));
   if (res.status === 401) throw new SpotifyApiError("AUTH_EXPIRED", err.message ?? "Token expiré", 401);
   if (res.status === 429) {
     const seconds = Number(res.headers.get("Retry-After"));
@@ -113,6 +120,12 @@ export async function spotifyFetch<T>(token: string, method: string, path: strin
   }
   if (res.status === 403 && (err.reason === "PREMIUM_REQUIRED" || /premium/i.test(err.message ?? ""))) {
     throw new SpotifyApiError("PREMIUM_REQUIRED", "Spotify Premium requis", 403);
+  }
+  if (res.status === 403) {
+    const scope = /insufficient.*scope/i.test(`${err.message ?? ""} ${res.headers.get("www-authenticate") ?? ""}`);
+    throw new SpotifyApiError(scope ? "SCOPE_REQUIRED" : "ACCESS_DENIED", scope
+      ? "Spotify refuse les permissions : reconnectez Spotify pour les accorder."
+      : `Spotify refuse l’accès (403, ${path.split("?")[0]}).${err.message ? ` ${err.message}` : ""}`, 403);
   }
   if (res.status === 404 && (err.reason === "NO_ACTIVE_DEVICE" || /device/i.test(err.message ?? ""))) {
     throw new SpotifyApiError("NO_DEVICE", "Aucun appareil actif", 404);
@@ -247,12 +260,8 @@ export async function runOp(token: string, op: MusicOp, args: Record<string, unk
       return out;
     }
     case "playlists": {
-      const [r, me] = await Promise.all([
-        spotifyFetch<{ items: SObject[] }>(token, "GET", "/me/playlists?limit=50"),
-        spotifyFetch<{ id: string }>(token, "GET", "/me"),
-      ]);
-      const liked: MusicItem = { uri: `spotify:user:${me!.id}:collection`, type: "playlist", name: "Titres likés", subtitle: "Vos favoris" };
-      return [liked, ...(r?.items ?? []).map(toItem).filter(Boolean)];
+      const r = await spotifyFetch<{ items: SObject[] }>(token, "GET", "/me/playlists?limit=50");
+      return (r?.items ?? []).map(toItem).filter(Boolean);
     }
     case "recent": {
       const r = await spotifyFetch<{ items: { track: SObject; context: { uri: string; type: string } | null }[] }>(
