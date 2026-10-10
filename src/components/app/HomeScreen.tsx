@@ -210,7 +210,7 @@ export function HomeScreen() {
   };
 
   const panelContent = (p: Exclude<PanelId, "more">) =>
-    p === "music" ? <MusicPanel compact /> : p === "timers" ? <TimersPanel /> : p === "shopping" ? <ShoppingPanel /> : <ScenesPanel />;
+    p === "music" ? <MusicPanel compact /> : p === "timers" ? <TimersPanel /> : p === "shopping" ? <ShoppingPanel /> : <ScenesPanel onActivated={() => setPanel(null)} />;
 
   const showHome = mobileTab === "today";
   const dockPanel = !showHome && isWide && panel && panel !== "more";

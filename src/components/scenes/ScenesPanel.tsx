@@ -13,7 +13,7 @@ import { useScenes } from "./SceneContext";
 const ICONS = ["☀️", "🍳", "🌙", "🎉", "🧘", "📚", "🎮", "🏋️", "🍽️", "🧹", "👶", "🎬", "💼", "🌿", "❤️", "🏠"];
 
 /** List of scenes: activate, edit, create, delete. */
-export function ScenesPanel() {
+export function ScenesPanel({ onActivated }: { onActivated?(): void } = {}) {
   const { scenes, active, activate } = useScenes();
   const stores = useModuleStores();
   const [editing, setEditing] = useState<Scene | null>(null);
@@ -46,7 +46,7 @@ export function ScenesPanel() {
           <Button size="icon" variant="ghost" onClick={() => setEditing(s)} aria-label={`Modifier ${s.name}`}>
             <Pencil size={18} />
           </Button>
-          <Button size="sm" variant={active?.id === s.id ? "soft" : "primary"} onClick={() => activate(s.id)}>
+          <Button size="sm" variant={active?.id === s.id ? "soft" : "primary"} onClick={() => { activate(s.id); onActivated?.(); }} aria-label={`Activer ${s.name}`}>
             <Play size={16} /> {active?.id === s.id ? "Active" : "Activer"}
           </Button>
         </div>
