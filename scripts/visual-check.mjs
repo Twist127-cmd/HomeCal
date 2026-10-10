@@ -3,7 +3,6 @@ import { build } from "esbuild";
 import { chromium } from "playwright";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
-import { execFileSync } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import assert from "node:assert/strict";
 import * as requireFs from "node:fs";
@@ -96,10 +95,13 @@ function collect(dir) {
  return requireFs.readdirSync(dir,{withFileTypes:true}).flatMap(d=>d.isDirectory()?collect(dir+"/"+d.name):[dir+"/"+d.name]);
 }
 
-execFileSync("node",["node_modules/@tailwindcss/cli/dist/index.mjs","-i","src/app/globals.css","-o",out+"/style.css"],{stdio:"inherit"});
+const nextCss=(await Promise.all(collect(".next/static").filter(p=>p.endsWith(".css")).map(p=>readFile(p,"utf8")))).join("\n");
+const sans=nextCss.match(/--font-geist-sans:([^;}]+)/)?.[1] || "ui-sans-serif";
+const mono=nextCss.match(/--font-geist-mono:([^;}]+)/)?.[1] || "ui-monospace";
+await writeFile(out+"/style.css", nextCss+"\n:root{--font-geist-sans:"+sans+";--font-geist-mono:"+mono+";}");
 await writeFile(out+"/index.html",'<html lang="fr"><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"></head><body><div id="root"></div><script src="/app.js"></script></body></html>');
 const server=createServer(async(req,res)=>{
- try{const url=new URL(req.url,"http://localhost");const file=url.pathname==="/app.js"||url.pathname==="/style.css"?out+url.pathname:url.pathname.startsWith("/ambience/")?resolve("public",url.pathname.slice(1)):out+"/index.html";res.setHeader("Content-Type",file.endsWith(".js")?"application/javascript":file.endsWith(".css")?"text/css":file.endsWith(".svg")?"image/svg+xml":"text/html");res.end(await readFile(file))}catch{res.statusCode=404;res.end()}
+ try{const url=new URL(req.url,"http://localhost");const file=url.pathname==="/app.js"||url.pathname==="/style.css"?out+url.pathname:url.pathname.startsWith("/_next/static/")?resolve(".next/static",url.pathname.slice(14)):url.pathname.startsWith("/ambience/")?resolve("public",url.pathname.slice(1)):out+"/index.html";res.setHeader("Content-Type",file.endsWith(".js")?"application/javascript":file.endsWith(".css")?"text/css":file.endsWith(".svg")?"image/svg+xml":file.endsWith(".woff2")?"font/woff2":"text/html");res.end(await readFile(file))}catch{res.statusCode=404;res.end()}
 });
 await new Promise(r=>server.listen(4173,"127.0.0.1",r));
 const browser=await chromium.launch({headless:true});

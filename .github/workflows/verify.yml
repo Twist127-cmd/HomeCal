@@ -24,16 +24,18 @@ jobs:
       - run: npm test
       - run: npm run build
       - name: Install isolated browser QA tools
-        run: npm install --no-save --package-lock=false esbuild @tailwindcss/cli playwright
+        run: npm install --no-save --package-lock=false esbuild playwright
       - run: npx playwright install --with-deps chromium
       - run: node scripts/visual-check.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: homecal-visual-review
+          include-hidden-files: true
           path: .visual/*.png
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: homecal-visual-report
+          include-hidden-files: true
           path: .visual/report.json
