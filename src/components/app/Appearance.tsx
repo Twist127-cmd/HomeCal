@@ -4,10 +4,12 @@ import { useEffect } from "react";
 import { useApp } from "./AppProvider";
 import { dayPeriod } from "@/lib/appearance";
 import { inTimeWindow } from "@/lib/dates";
+import { useDesign } from "@/theme/ThemeProvider";
 
 /** A single appearance clock, including settings and full-screen scenes. */
 export function Appearance() {
   const { household } = useApp();
+  const { preset } = useDesign();
   const enabled = household?.settings.nightMode.enabled ?? false;
   const start = household?.settings.nightMode.start ?? "22:30";
   const end = household?.settings.nightMode.end ?? "06:30";
@@ -21,7 +23,7 @@ export function Appearance() {
       root.classList.toggle("night", night);
       let theme = "auto";
       try { theme = localStorage.getItem("homecal.theme") ?? "auto"; } catch { /* storage unavailable */ }
-      root.classList.toggle("dark", night || theme === "dark" || (theme === "auto" && media.matches));
+      root.classList.toggle("dark", night || preset.dark || theme === "dark" || (theme === "auto" && media.matches));
     };
     sync();
     const clock = window.setInterval(sync, 60_000);
@@ -34,6 +36,6 @@ export function Appearance() {
       window.removeEventListener("storage", sync);
       window.removeEventListener("homecal:appearance", sync);
     };
-  }, [enabled, start, end]);
+  }, [enabled, start, end, preset.dark]);
   return null;
 }

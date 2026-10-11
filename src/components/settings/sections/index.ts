@@ -1,4 +1,5 @@
-import { Bot, Car, Clapperboard, Home, LogOut, MapPin, Mic, Monitor, Music, Plug, Timer, Users, Volume2, type LucideIcon } from "lucide-react";
+import { Bot, Car, Clapperboard, Home, LogOut, MapPin, Mic, Monitor, Music, Palette, Plug, Timer, Users, Volume2, type LucideIcon } from "lucide-react";
+import { AppearanceSection } from "./AppearanceSection";
 import type { ComponentType } from "react";
 import { features } from "@/lib/features";
 import { AccountSection } from "./AccountSection";
@@ -32,6 +33,7 @@ export const SETTINGS_SECTIONS: SettingsSectionDef[] = [
   { id: "profils", title: "Profils", icon: Users, Component: ProfilesSection },
   { id: "lieux", title: "Lieux favoris", icon: MapPin, Component: PlacesSection },
   { id: "affichage", title: "Affichage", icon: Monitor, Component: DisplaySection },
+  { id: "apparence", title: "Apparence", icon: Palette, Component: AppearanceSection },
   { id: "trajets", title: "Trajets", icon: Car, Component: TravelSection },
   { id: "musique", title: "Musique", icon: Music, Component: MusicSection, enabled: () => features.spotify },
   { id: "minuteurs", title: "Minuteurs", icon: Timer, Component: TimersSection, enabled: () => features.timers },

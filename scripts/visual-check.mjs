@@ -66,7 +66,9 @@ import {Appearance} from "@/components/app/Appearance";
 import {HomeScreen} from "@/components/app/HomeScreen";
 import {SettingsScreen} from "@/components/settings/SettingsScreen";
 import {VoiceOverlay} from "@/components/voice/VoiceOverlay";
-import {app} from "@fixture";
+import {app,music,emit} from "@fixture";
+import {ThemeProvider} from "@/theme/ThemeProvider";
+import {MusicPresentation} from "@/components/music/MusicPresentation";
 function Fixture(){
  const [path,setPath]=useState(location.pathname);
  useEffect(()=>{const change=()=>setPath(location.pathname);addEventListener("popstate",change);return()=>removeEventListener("popstate",change)},[]);
@@ -75,7 +77,8 @@ function Fixture(){
  return <><Appearance/>{path==="/settings"?<SettingsScreen/>:<HomeScreen/>}<VoiceOverlay/></>;
 }
 window.fixtureApp=app;
-createRoot(document.getElementById("root")).render(<Fixture/>);
+window.fixtureMusic=music; window.fixtureEmit=emit;
+createRoot(document.getElementById("root")).render(<ThemeProvider><MusicPresentation><Fixture/></MusicPresentation></ThemeProvider>);
 `;
 await build({
  stdin:{contents:fixture,resolveDir:process.cwd(),sourcefile:"fixture.jsx",loader:"jsx"},
@@ -111,7 +114,7 @@ const browser=await chromium.launch({headless:true});
 const sizes=[{name:"phone",width:390,height:844},{name:"tablet-portrait",width:820,height:1180},{name:"tablet-landscape",width:1200,height:800},{name:"desktop",width:1440,height:900}];
 const errors=[];
 try {
- for(const size of sizes)for(const theme of ["light","dark"])for(const [period,hour] of [["morning",8],["day",14],["evening",20],["night",1]]) {
+ for(const size of (process.env.HOMECAL_QA_FAST ? [] : sizes))for(const theme of ["light","dark"])for(const [period,hour] of [["morning",8],["day",14],["evening",20],["night",1]]) {
   const context=await browser.newContext({viewport:{width:size.width,height:size.height},colorScheme:theme,reducedMotion:"reduce"});
   const page=await context.newPage();
   page.on("console",m=>console.log("BROWSER_CONSOLE:"+m.type()+":"+m.text()));
@@ -134,21 +137,23 @@ try {
  page.on("pageerror",e=>{errors.push(e.message);console.log("BROWSER_ERROR:"+e.name+":"+e.message+":"+e.stack)});
  await page.clock.install({time:new Date(2026,3,26,8,42)});
  await page.goto("http://127.0.0.1:4173");
- await page.getByRole("button",{name:"Personnaliser l’accueil"}).click();
- await page.getByRole("button",{name:"Masquer Courses",exact:true}).click();
- await page.getByRole("button",{name:"Terminer",exact:true}).click();
+ await page.getByRole("link",{name:"Personnaliser",exact:true}).click();
+ await page.getByRole("button",{name:"Personnaliser l’accueil",exact:true}).click();
+ await page.locator('[data-layout-row="shopping"]').getByRole("switch").click();
+ await page.getByRole("button",{name:"Enregistrer",exact:true}).click();
+ await page.getByRole("link",{name:"Retour",exact:true}).click();
  assert.equal(await page.locator('[data-widget="shopping"]').count(),0);
  await page.reload();
  await page.getByRole("heading",{level:1}).waitFor();
  assert.equal(await page.locator('[data-widget="shopping"]').count(),0);
- await page.getByRole("button",{name:"Personnaliser l’accueil"}).click();
- await page.getByRole("button",{name:"Restaurer la disposition"}).click();
- await page.getByRole("button",{name:"Terminer",exact:true}).click();
+ await page.getByRole("link",{name:"Personnaliser",exact:true}).click();
+ await page.getByRole("button",{name:"Réinitialiser le layout",exact:true}).click();
+ await page.getByRole("link",{name:"Retour",exact:true}).click();
  assert.equal(await page.locator('[data-widget="shopping"]').count(),1);
  await page.getByRole("button",{name:"Mettre en pause Pâtes"}).click();
  await page.getByRole("button",{name:"Reprendre Pâtes"}).waitFor();
  await page.getByRole("button",{name:"Arrêter Pâtes"}).click();
- assert.equal(await page.locator('[data-widget="timers"]').count(),0);
+ await page.locator('[data-widget="timers"]').getByRole("button",{name:"Créer un minuteur"}).waitFor();
  await page.getByRole("button",{name:"Calendrier",exact:true}).click();
  await page.getByRole("button",{name:"Mois",exact:true}).click();
  await page.screenshot({path:out+"/calendar.png"});
@@ -180,8 +185,81 @@ try {
  await page.getByRole("button",{name:"Revenir à l’accueil",exact:true}).waitFor();
  await page.screenshot({path:out+"/ambient.png"});
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,"ambient horizontal overflow");
+ const presetNames=["Sobre","Warm","Nuit","Light Premium","Été","Hiver","Automne","Printemps","Neon Tokyo","Cyber Glass","Sunset Club","Aurora","Space","Luxury Gold","Retro Future","Candy","Forest","Ice"];
+ // Real gallery actions, including preview cancellation and unchanged widget layout.
+ await page.goto("http://127.0.0.1:4173/settings#apparence");
+ await page.getByRole("heading",{name:"Apparence",exact:true}).waitFor();
+ const layoutBefore=await page.evaluate(()=>localStorage.getItem("homecal.home-layout.v1.fixture"));
+ for(const name of (process.env.HOMECAL_QA_FAST ? ["Ice"] : presetNames)){
+   await page.getByRole("button",{name:"Aperçu "+name,exact:true}).click();
+   await page.getByRole("button",{name:"Appliquer",exact:true}).click();
+   assert.equal(await page.evaluate(()=>localStorage.getItem("homecal.home-layout.v1.fixture")),layoutBefore,"style changes layout");
+   for(const size of sizes){await page.setViewportSize({width:size.width,height:size.height});await page.screenshot({path:out+"/preset-"+name.replaceAll(" ","-")+"-"+size.name+".png",fullPage:true});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,"preset overflow: "+name+" "+size.name);}
+ }
+ await page.setViewportSize({width:1200,height:800});
+ await page.getByRole("button",{name:"Aperçu Warm",exact:true}).click();
+ await page.getByRole("button",{name:"Annuler",exact:true}).click();
+ assert.equal(await page.evaluate(()=>document.documentElement.dataset.design),"ice");
+ const styleBefore=await page.evaluate(()=>localStorage.getItem("homecal.design.v1.fixture"));
+ for(const name of ["Minimal","Maison","Cuisine","Calendrier","Famille"]){
+   await page.locator(".layout-preset-choice").filter({has:page.getByText(name,{exact:true})}).click();
+   assert.equal(await page.evaluate(()=>localStorage.getItem("homecal.design.v1.fixture")),styleBefore,"layout changes style");
+   await page.getByRole("link",{name:"Retour",exact:true}).click();
+   for(const width of [390,820,1440]){await page.setViewportSize({width,height:900});await page.screenshot({path:out+"/layout-"+name+"-"+width+".png",fullPage:true});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,"layout overflow: "+name);}
+   await page.goto("http://127.0.0.1:4173/settings#apparence");
+ }
+ await page.setViewportSize({width:1200,height:800});
+ for(const name of ["Compact","Normal","Confort"]){await page.getByRole("button",{name,exact:true}).click();await page.screenshot({path:out+"/density-"+name+".png",fullPage:true});}
+ await page.getByRole("button",{name:"Personnaliser l’accueil",exact:true}).click();
+ // A real touch pointer stream on the drag handle (tablet), then keyboard arrows.
+ await page.locator('[data-layout-row="clock"]').evaluate(el=>el.scrollIntoView({block:"start"}));
+ const touch=await context.newCDPSession(page);
+ await touch.send("Emulation.setTouchEmulationEnabled",{enabled:true});
+ const firstHandle=await page.getByRole("button",{name:"Déplacer Heure",exact:true}).boundingBox();
+ const targetRow=await page.locator('[data-layout-row="weather"]').boundingBox();
+ const beforeTouch=await page.locator("[data-layout-row]").evaluateAll(rows=>rows.map(r=>r.dataset.layoutRow));
+ await touch.send("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[{x:firstHandle.x+20,y:firstHandle.y+20,id:1}]});
+ await touch.send("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:[{x:targetRow.x+40,y:targetRow.y+40,id:1}]});
+ await touch.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});
+ const afterTouch=await page.locator("[data-layout-row]").evaluateAll(rows=>rows.map(r=>r.dataset.layoutRow));
+ assert.notDeepEqual(afterTouch,beforeTouch,"touch did not reorder widgets");
+ await touch.send("Emulation.setTouchEmulationEnabled",{enabled:false});
+ const savedBefore=await page.evaluate(()=>localStorage.getItem("homecal.home-layout.v1.fixture"));
+ await page.locator('[data-layout-row="clock"]').getByRole("switch").click();
+ await page.getByRole("button",{name:"Annuler",exact:true}).click();
+ assert.equal(await page.evaluate(()=>localStorage.getItem("homecal.home-layout.v1.fixture")),savedBefore,"cancel saves draft");
+ await page.getByRole("button",{name:"Personnaliser l’accueil",exact:true}).click();
+ for(const size of ["compact","standard","large"]){
+   for(const row of await page.locator("[data-layout-row]").all()){
+     const toggle=row.getByRole("switch");if(await toggle.getAttribute("aria-checked")==="false")await toggle.click();
+     const select=row.locator('select[aria-label^="Taille"]');if(await select.count()&&await select.locator('option[value="'+size+'"]').count())await select.selectOption(size);
+   }
+   await page.screenshot({path:out+"/widgets-"+size+".png",fullPage:true});
+ }
+ await page.getByRole("combobox",{name:"Largeur Musique",exact:true}).selectOption("full");
+ await page.getByRole("button",{name:"Avancer Musique",exact:true}).click();
+ await page.getByRole("button",{name:"Enregistrer",exact:true}).click();
+ await page.getByRole("link",{name:"Retour",exact:true}).click();
+ assert.equal(await page.locator('[data-widget="music"]').getAttribute("data-width"),"full");
+ await page.getByRole("button",{name:"Spotify immersif",exact:true}).click();
+ await page.getByRole("dialog",{name:"Spotify immersif",exact:true}).waitFor();
+ await page.screenshot({path:out+"/spotify-immersive.png"});
+ await page.getByRole("dialog").getByRole("button",{name:"Pause",exact:true}).click();
+ assert.equal(await page.getByRole("dialog").getAttribute("data-playing"),"false");
+ for(const [index,color] of ["#ffffff","#000000","#808080","#ff0000","#00ff00","#0000ff"].entries()){
+   await page.evaluate(color=>{window.fixtureMusic.playback={...window.fixtureMusic.playback,item:{...window.fixtureMusic.playback.item,image:"data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="'+color+'"/></svg>')}};window.fixtureEmit()},color);
+   for(const width of [390,1200]){await page.setViewportSize({width,height:900});await page.screenshot({path:out+"/spotify-cover-"+index+"-"+width+".png"});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,"immersive artwork overflow");}
+ }
+ await page.evaluate(()=>{window.fixtureMusic.playback={...window.fixtureMusic.playback,item:{...window.fixtureMusic.playback.item,image:"/missing-artwork.png"}};window.fixtureEmit()});
+ await page.getByLabel("Pochette indisponible").first().waitFor();
+ await page.screenshot({path:out+"/spotify-missing-artwork.png"});
+ await page.evaluate(()=>{window.fixtureMusic.playback=null;window.fixtureEmit()});
+ await page.getByRole("heading",{name:"La musique de la maison.",exact:true}).waitFor();
+ await page.screenshot({path:out+"/spotify-empty.png"});
+ await page.keyboard.press("Escape");
+ assert.equal(await page.getByRole("dialog").count(),0);
  assert.deepEqual(errors,[],"browser errors");
  await context.close();
- await writeFile(out+"/report.json",JSON.stringify({screenshots:40,viewports:sizes,themes:2,periods:4,checks:["no document/card overflow","persist hidden widgets","restore layout","pause/resume/stop timer","calendar navigation","kitchen scene","settings navigation","device voice picker","morning/evening scenes","assistant orb","ambient mode"],browserErrors:errors},null,2));
- console.log("PASS: 32 home combinations + calendar, all scenes, settings, voice, assistant and ambient; layout persistence, timer controls and navigation.");
+ await writeFile(out+"/report.json",JSON.stringify({screenshots:requireFs.readdirSync(out).filter(f=>f.endsWith(".png")).length,viewports:sizes,themes:2,periods:4,checks:["no document/card overflow","persist hidden widgets","restore layout","pause/resume/stop timer","calendar navigation","kitchen scene","settings navigation","device voice picker","morning/evening scenes","assistant orb","ambient mode","18 presets across 4 viewports","style/layout independence","5 layouts across 3 widths","3 densities","cancel layout draft","all supported widget sizes","full-width music","touch and keyboard reordering","immersive music, pause, empty fallback, Escape"],browserErrors:errors},null,2));
+ console.log(process.env.HOMECAL_QA_FAST ? "PASS: updated layouts, touch drag, keyboard ordering, densities and Spotify artwork/immersive states." : "PASS: 18 styles, 5 layouts, 4 viewports, 32 theme/time combinations, touch drag, sizes, persistence, Spotify artwork/immersive states, scenes and ambient.");
 } finally { await browser.close();server.close(); }

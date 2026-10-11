@@ -8,6 +8,8 @@ import { SceneProvider } from "@/components/scenes/SceneContext";
 import { VoiceProvider } from "@/components/voice/VoiceContext";
 import { VoiceOverlay } from "@/components/voice/VoiceOverlay";
 import "./globals.css";
+import { ThemeProvider } from "@/theme/ThemeProvider";
+import { MusicPresentation } from "@/components/music/MusicPresentation";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -54,15 +56,19 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       </head>
       <body className="h-full">
         <AppProvider>
-          <Appearance />
-          <MusicContextProvider>
-            <SceneProvider>
-              <VoiceProvider>
-                {children}
-                <VoiceOverlay />
-              </VoiceProvider>
-            </SceneProvider>
-          </MusicContextProvider>
+          <ThemeProvider>
+            <Appearance />
+            <MusicContextProvider>
+              <MusicPresentation>
+                <SceneProvider>
+                  <VoiceProvider>
+                    {children}
+                    <VoiceOverlay />
+                  </VoiceProvider>
+                </SceneProvider>
+              </MusicPresentation>
+            </MusicContextProvider>
+          </ThemeProvider>
         </AppProvider>
         <ServiceWorker />
       </body>

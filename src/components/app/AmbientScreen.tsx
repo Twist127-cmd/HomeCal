@@ -15,10 +15,18 @@ import { profileColor } from "@/lib/profiles";
 import { expandEvents } from "@/lib/recurrence";
 import type { Occurrence } from "@/lib/types";
 import { describeWeather } from "@/providers/weather/WeatherProvider";
+import { useDesign } from "@/theme/ThemeProvider";
+import { useAlbumPalette } from "@/theme/useAlbumPalette";
+import { musicalTokens } from "@/theme/albumPalette";
+import { useEffectivePreset } from "@/theme/useEffectivePreset";
 
 /** Full-screen clock + next events, shown after inactivity (kiosk). Tap to leave. */
 export function AmbientScreen({ now, night, onWake }: { now: Date; night: boolean; onWake(): void }) {
   const { events, profiles, homePlace } = useApp();
+  const music = useMusic();
+  const { preferences } = useDesign();
+  const preset = useEffectivePreset();
+  const palette = useAlbumPalette(music.playback?.item?.image);
   const forecast = useForecast();
   const upcoming = expandEvents(events, now, addDays(startOfDay(now), 3)).filter((o) => o.end > now);
   const next = upcoming.find((o) => !o.event.allDay) ?? upcoming[0];
@@ -30,6 +38,8 @@ export function AmbientScreen({ now, night, onWake }: { now: Date; night: boolea
   return (
     <div
       className="fixed inset-0 z-[70] ambient-shell flex animate-fade-in cursor-pointer flex-col overflow-y-auto p-6 select-none sm:p-14"
+      style={music.connected && music.playback?.item ? musicalTokens(palette, preset, preferences.musicAdaptation) as React.CSSProperties : undefined}
+      data-music={!!(music.connected && music.playback?.item) && preferences.musicAdaptation !== "off"}
       onClick={onWake}
       role="button"
       tabIndex={0}
@@ -88,6 +98,9 @@ export function AmbientScreen({ now, night, onWake }: { now: Date; night: boolea
 function AmbientExtras() {
   const { timers } = useApp();
   const music = useMusic();
+  const { preferences } = useDesign();
+  const preset = useEffectivePreset();
+  const palette = useAlbumPalette(music.playback?.item?.image);
   const tick = useNow(1000).getTime();
   const active = timers.filter((t) => t.status === "running" || t.status === "paused");
   const p = music.connected ? music.playback : null;
@@ -103,7 +116,7 @@ function AmbientExtras() {
         );
       })}
       {p?.item && (
-        <div className="flex max-w-md items-center gap-3 rounded-2xl bg-surface/70 p-2 pr-3">
+        <div className="ambient-music flex max-w-md items-center gap-3 rounded-2xl p-2 pr-3" style={musicalTokens(palette, preset, preferences.musicAdaptation) as React.CSSProperties}>
           {p.item.image && (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={p.item.image} alt="" className="h-12 w-12 rounded-lg object-cover" />

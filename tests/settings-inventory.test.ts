@@ -51,9 +51,10 @@ describe("settings reorganisation keeps every existing setting", () => {
     for (const l of labels) expect(source, `${title} → ${l}`).toContain(l);
   });
 
-  it("menu categories = the former sections exactly (no invented category)", async () => {
+  it("keeps the former categories and adds the requested appearance editor", async () => {
     const { SETTINGS_SECTIONS } = await import("@/components/settings/sections");
-    expect(SETTINGS_SECTIONS.map((s) => s.title)).toEqual(Object.keys(BEFORE));
+    const categories = Object.keys(BEFORE); categories.splice(categories.indexOf("Affichage") + 1, 0, "Apparence");
+    expect(SETTINGS_SECTIONS.map((s) => s.title)).toEqual(categories);
     expect(new Set(SETTINGS_SECTIONS.map((s) => s.id)).size).toBe(SETTINGS_SECTIONS.length);
   });
 

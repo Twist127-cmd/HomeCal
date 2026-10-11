@@ -19,15 +19,15 @@ describe("disposition locale de l’accueil", () => {
   });
   it("ignore les doublons et les identifiants inconnus, et complète les widgets manquants", () => {
     const result = parseHomeLayout(JSON.stringify([{ id: "music", visible: false, size: "large" }, { id: "music" }, { id: "unknown" }, { id: "next", size: "large" }]));
-    expect(result).toHaveLength(6);
-    expect(result[0]).toEqual({ id: "music", visible: false, size: "large" });
-    expect(result[1].size).toBe("standard");
-    expect(new Set(result.map((w) => w.id)).size).toBe(6);
+    expect(result).toHaveLength(12);
+    expect(result[0]).toEqual({ id: "music", visible: false, size: "large", width: 1 });
+    expect(result[1].size).toBe("large");
+    expect(new Set(result.map((w) => w.id)).size).toBe(12);
   });
   it("déplace les cartes sans modifier les valeurs par défaut et conserve la disposition sauvegardée", () => {
     const result = reorderWidget(DEFAULT_HOME_LAYOUT, "house", "next");
-    expect(result[0].id).toBe("house");
-    expect(DEFAULT_HOME_LAYOUT[0].id).toBe("next");
+    expect(result[2].id).toBe("house");
+    expect(DEFAULT_HOME_LAYOUT[0].id).toBe("clock");
     expect(parseHomeLayout(JSON.stringify(result))).toEqual(result);
     expect(reorderWidget(result, "next", "next")).toBe(result);
   });

@@ -22,6 +22,11 @@ import { Button, Spinner, inputClass } from "@/components/ui/primitives";
 import { useNow } from "@/hooks/useNow";
 import type { MusicItem } from "@/providers/music";
 import { useMusic } from "./MusicContext";
+import { useMusicPresentation } from "./MusicPresentation";
+import { useDesign } from "@/theme/ThemeProvider";
+import { useEffectivePreset } from "@/theme/useEffectivePreset";
+import { useAlbumPalette } from "@/theme/useAlbumPalette";
+import { musicalTokens } from "@/theme/albumPalette";
 
 const fmt = (ms: number) => {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -37,8 +42,13 @@ function DeviceIcon({ type, size = 18 }: { type: string; size?: number }) {
 }
 
 /** Full HomeCal music view (Spotify Connect remote). */
-export function MusicPanel({ compact }: { compact?: boolean }) {
+export function MusicPanel({ compact, hideImmersive }: { compact?: boolean; hideImmersive?: boolean }) {
   const m = useMusic();
+  const { openImmersive } = useMusicPresentation();
+  const { preferences } = useDesign();
+  const preset = useEffectivePreset();
+  const palette = useAlbumPalette(m.playback?.item?.image);
+  const paletteStyle = musicalTokens(palette, preset, preferences.musicAdaptation, true) as React.CSSProperties;
   const now = useNow(1000);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<MusicItem[] | null>(null);
@@ -76,7 +86,7 @@ export function MusicPanel({ compact }: { compact?: boolean }) {
 
   if (!m.connected)
     return (
-      <div className="flex flex-col items-center gap-4 px-6 py-10 text-center">
+      <div style={paletteStyle} className="music-adaptive music-library flex flex-col items-center gap-4 rounded-2xl px-6 py-10 text-center">
         <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[#1DB954] text-white">
           <Music2 size={30} />
         </span>
@@ -100,7 +110,8 @@ export function MusicPanel({ compact }: { compact?: boolean }) {
   const list = results ?? null;
 
   return (
-    <div className={clsx("space-y-5", compact ? "p-4" : "p-5")}>
+    <div style={paletteStyle} className={clsx("music-adaptive music-library rounded-2xl space-y-5", compact ? "p-4" : "p-5")}>
+      {!hideImmersive && <Button onClick={openImmersive}>Spotify immersif</Button>}
       {m.error && <div role="alert" className="rounded-2xl bg-surface-2 p-3 text-sm text-warn">
         <p>{m.error.message}</p>
         {(m.error.code === "ACCESS_DENIED" || m.error.code === "SCOPE_REQUIRED" || m.error.code === "AUTH_EXPIRED") &&

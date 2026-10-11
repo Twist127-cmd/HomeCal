@@ -21,7 +21,7 @@ export function Button({
         size === "lg" && "h-14 px-6 text-base",
         size === "icon" && "h-11 w-11",
         variant === "default" && "bg-surface border border-border hover:bg-surface-2",
-        variant === "primary" && "bg-accent text-white hover:opacity-90 shadow-sm dark:text-black",
+        variant === "primary" && "bg-accent text-[var(--color-on-accent,#ffffff)] hover:opacity-90 shadow-sm",
         variant === "ghost" && "hover:bg-surface-2",
         variant === "soft" && "bg-accent-soft text-accent hover:opacity-90",
         variant === "danger" && "bg-danger/10 text-danger hover:bg-danger/15",
