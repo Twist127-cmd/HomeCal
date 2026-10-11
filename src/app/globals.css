@@ -288,6 +288,22 @@ button, a, input, select, textarea { transition-duration: 200ms; }
 @keyframes avatar-attention { 0%, 80%, 100% { transform: rotate(0); } 88%, 92% { transform: rotate(-3deg) translateX(-1px); } }
 @keyframes avatar-steps { 0%, 60%, 100% { transform: translateX(0); } 70%, 82% { transform: translateX(4px) rotate(1deg); } }
 .avatar-family-scene { display: flex; flex-shrink: 0; align-items: flex-end; justify-content: center; flex-wrap: wrap; gap: .25rem 1rem; padding: .4rem .75rem; max-height: 154px; overflow-y: auto; }
+.home-greeting-row { display: flex; align-items: center; gap: clamp(.5rem, 2vw, 2rem); }
+.home-greeting-row .home-greeting { min-width: 0; margin-top: 0; }
+.avatar-greeting { position: relative; flex-shrink: 0; width: clamp(100px, 20vw, 260px); height: 88px; overflow: hidden; }
+.avatar-greeting-walk { position: absolute; inset: 0 84px 0 0; animation: avatar-greeting-walk 24s linear infinite; }
+.avatar-greeting-facing { width: 84px; animation: avatar-greeting-turn 24s steps(1, end) infinite; }
+.avatar-greeting .avatar-renderer { animation: none; }
+.avatar-greeting .avatar-renderer::after { display: none; }
+.avatar-greeting[data-intensity="reduced"] .avatar-greeting-walk,
+.avatar-greeting[data-intensity="reduced"] .avatar-greeting-facing,
+.avatar-greeting:has([data-motion="sleep"], [data-motion="dance"], [data-motion="attention"]) .avatar-greeting-walk,
+.avatar-greeting:has([data-motion="sleep"], [data-motion="dance"], [data-motion="attention"]) .avatar-greeting-facing { animation: none; }
+:root[data-avatar-paused="true"] .avatar-greeting * { animation-play-state: paused; }
+@keyframes avatar-greeting-walk { 0%, 8%, 100% { transform: translateX(0); } 45%, 55% { transform: translateX(100%); } 92% { transform: translateX(0); } }
+@keyframes avatar-greeting-turn { 0%, 100% { transform: scaleX(1); } 50% { transform: scaleX(-1); } }
+@media (max-width: 600px) { .home-greeting-row .home-greeting { font-size: clamp(1.7rem, 6vw, 2.3rem); } }
+@media (prefers-reduced-motion: reduce) { .avatar-greeting * { animation: none !important; transform: none !important; } }
 .avatar-family-member { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; min-width: 0; max-width: 110px; padding-block: .25rem; }
 .avatar-family-member figcaption { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .7rem; color: var(--color-muted); }
 .avatar-family-member:has(.avatar-renderer[data-intensity="lively"]):nth-child(even) .avatar-head { animation-direction: reverse; }

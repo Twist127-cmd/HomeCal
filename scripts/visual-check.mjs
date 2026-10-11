@@ -118,6 +118,37 @@ await new Promise(r=>server.listen(4173,"127.0.0.1",r));
 const browser=await chromium.launch({headless:true});
 const sizes=[{name:"phone",width:390,height:844},{name:"tablet-portrait",width:820,height:1180},{name:"tablet-landscape",width:1200,height:800},{name:"desktop",width:1440,height:900}];
 const errors=[];
+if (process.env.HOMECAL_QA_GREETING) {
+  const page = await browser.newPage();
+  page.on("pageerror", error => errors.push(error.message));
+  await page.clock.install({ time: new Date(2026, 9, 11, 14, 30) });
+  await page.goto("http://127.0.0.1:4173");
+  const walker = page.locator(".avatar-greeting-walk");
+  await walker.waitFor();
+  await page.evaluate(() => { window.fixtureMusic.playback.isPlaying = false; window.fixtureEmit(); });
+  await page.waitForFunction(() => document.querySelector(".avatar-greeting-walk")?.getAnimations().length > 0);
+  for (const size of sizes) {
+    await page.setViewportSize(size);
+    const initial = await walker.evaluate(el => {
+      const animation = el.getAnimations()[0];
+      animation.pause(); animation.currentTime = 0;
+      return el.getBoundingClientRect().x;
+    });
+    const moved = await walker.evaluate(el => {
+      el.getAnimations()[0].currentTime = 10_800;
+      return el.getBoundingClientRect().x;
+    });
+    assert.ok(moved > initial + 10, "avatar walks: " + size.name);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, "greeting overflow: " + size.name);
+    await page.screenshot({ path: out + "/greeting-" + size.name + ".png" });
+  }
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  assert.equal(await walker.evaluate(el => getComputedStyle(el).animationName), "none");
+  assert.deepEqual(errors, []);
+  await browser.close(); server.close();
+  console.log("PASS: greeting avatar walks across 4 viewports; reduced motion disables walking.");
+  process.exit(0);
+}
 try {
  for(const size of (process.env.HOMECAL_QA_FAST ? [] : sizes))for(const theme of ["light","dark"])for(const [period,hour] of [["morning",8],["day",14],["evening",20],["night",1]]) {
   const context=await browser.newContext({viewport:{width:size.width,height:size.height},colorScheme:theme,reducedMotion:"reduce"});

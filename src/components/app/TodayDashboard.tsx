@@ -21,6 +21,7 @@ import { WIDGET_REGISTRY } from "@/layout/widgetRegistry";
 import { useWidgetLayout } from "@/layout/widgetLayoutStore";
 import Link from "next/link";
 import { AvatarFamilyScene } from "@/components/avatar/AvatarFamilyScene";
+import { AvatarGreeting } from "@/components/avatar/AvatarGreeting";
 import { capitalize, fmt, fmtRelativeDay, fmtTime } from "@/lib/dates";
 import { vibrate } from "@/lib/sound";
 import { formatRemaining, nowMs, pauseTimer, remainingMs, resumeTimer } from "@/lib/timers";
@@ -116,8 +117,11 @@ export function TodayDashboard({ now, next, departure, today, editing, onEditing
         {!preview && <Link className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm text-muted" href="/settings#apparence"><SlidersHorizontal size={19} /><span className="hidden sm:inline">Personnaliser</span></Link>}
       </div>
       <header className="home-hero">
-        <div className="min-w-0">
-          <h1 className="home-greeting">{greeting(now.getHours())}</h1>
+        <div className="min-w-0 w-full">
+          <div className="home-greeting-row">
+            <h1 className="home-greeting">{greeting(now.getHours())}</h1>
+            <AvatarGreeting profiles={profiles} />
+          </div>
           <p className="home-date">{capitalize(fmt(now, "EEEE d MMMM"))}</p>
           <p className="mt-3 max-w-md text-sm leading-relaxed text-muted">{today.length ? today.length + (today.length > 1 ? " moments prévus aujourd’hui." : " moment prévu aujourd’hui.") : "La maison prend le temps de vivre."}</p>
         </div>
