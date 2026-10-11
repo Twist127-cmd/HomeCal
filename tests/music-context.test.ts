@@ -7,13 +7,15 @@ const { music } = vi.hoisted(() => ({ music: {
   getPlaylists: vi.fn().mockResolvedValue([]),
   getRecent: vi.fn().mockResolvedValue([]),
   getDevices: vi.fn().mockResolvedValue([]),
+  getProfile: vi.fn().mockResolvedValue({ name: "Test", product: "premium" }),
 } }));
 vi.mock("@/components/app/AppProvider", () => ({ useApp: () => ({ music, spotify: { cipher: "sealed", name: "Test", product: "unknown" }, user: { uid: "test" } }) }));
 vi.mock("@/lib/features", () => ({ features: { spotify: true } }));
 vi.mock("@/components/ui/toast", () => ({ toast: vi.fn() }));
 vi.mock("@/lib/firebase/client", () => ({ firestore: vi.fn() }));
-vi.mock("@/lib/data/household", () => ({ saveSpotifyConnection: vi.fn() }));
+vi.mock("@/lib/data/household", () => ({ updateSpotifyProfile: vi.fn() }));
 import { MusicContextProvider, useMusic, type MusicState } from "@/components/music/MusicContext";
+import { updateSpotifyProfile } from "@/lib/data/household";
 
 afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
@@ -31,6 +33,8 @@ it("keeps panel loading callbacks stable after state updates, preventing request
     expect(state.loadLibrary).toBe(library);
     expect(state.loadDevices).toBe(devices);
     expect(state.premium).toBeNull();
+    expect(music.getProfile).toHaveBeenCalledTimes(1);
+    expect(updateSpotifyProfile).toHaveBeenCalledWith(undefined, "test", { name: "Test", product: "premium" });
     expect(music.getPlaylists).toHaveBeenCalledTimes(1);
     expect(music.getDevices).toHaveBeenCalledTimes(1);
   } finally {

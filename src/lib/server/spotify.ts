@@ -114,11 +114,13 @@ export async function spotifyFetch<T>(token: string, method: string, path: strin
   // Spotify can return plain text (notably account-access refusals). Never echo credentials.
   const safeDetail = detail.split(token).join("[redacted]").slice(0, 400);
   const accountDenied = /not registered|not authorized|not authorised|developer dashboard|user.*not.*(allow|register)/i.test(safeDetail);
+  const ownerPremiumRequired = /premium/i.test(safeDetail) && /owner|application|developer|app\b/i.test(safeDetail);
   // Log only public application metadata and status; never tokens, headers or user data.
   console.warn("[spotify:upstream]", JSON.stringify({
     method, endpoint: path.split("?")[0], status: res.status,
     reason: typeof err.reason === "string" ? err.reason.slice(0, 80) : null,
     accountDenied,
+    ownerPremiumRequired,
     responseFormat: json ? "json" : text.trim() ? "text" : "empty",
     insufficientScope: /insufficient.*scope/i.test(`${safeDetail} ${res.headers.get("www-authenticate") ?? ""}`),
     clientId: spotifyConfig.clientId(),
@@ -129,7 +131,9 @@ export async function spotifyFetch<T>(token: string, method: string, path: strin
     throw new SpotifyApiError("RATE_LIMITED", "Trop de demandes", 429, Number.isFinite(seconds) && seconds > 0 ? seconds : 30);
   }
   if (res.status === 403 && (err.reason === "PREMIUM_REQUIRED" || /premium/i.test(safeDetail))) {
-    throw new SpotifyApiError("PREMIUM_REQUIRED", "Spotify Premium requis", 403);
+    throw new SpotifyApiError("PREMIUM_REQUIRED", ownerPremiumRequired
+      ? `Spotify exige encore Premium pour le propriétaire de l’application. ${safeDetail}`
+      : `Spotify exige Premium pour ce compte. ${safeDetail || "Spotify Premium requis."}`, 403);
   }
   if (res.status === 403) {
     const scope = /insufficient.*scope/i.test(`${safeDetail} ${res.headers.get("www-authenticate") ?? ""}`);

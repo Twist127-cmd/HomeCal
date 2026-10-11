@@ -8,6 +8,16 @@ import { SpotifyProvider } from "@/providers/music/SpotifyProvider";
 afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe("Spotify throttling", () => {
+  it("distinguishes app-owner Premium restrictions from playback subscription requirements", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("Active premium subscription required for the owner of the app.", { status: 403 })));
+    await expect(spotifyFetch("test", "GET", "/me")).rejects.toMatchObject({ code: "PREMIUM_REQUIRED", message: expect.stringContaining("propriétaire") });
+  });
+
+  it("preserves the exact Premium error sent by the server", async () => {
+    const provider = new SpotifyProvider({ getIdToken: async () => "test", getCipher: () => "sealed", onCipherRotated: vi.fn(), onDisconnect: async () => {}, fetchImpl: vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: "PREMIUM_REQUIRED", error: "Premium requis pour le propriétaire" }), { status: 403 })) });
+    await expect(provider.play()).rejects.toMatchObject({ message: "Premium requis pour le propriétaire" });
+  });
   it("requests explicit consent with playback and private playlist permissions", () => {
     const params = new URL(authorizeUrl("state")).searchParams;
     expect(params.get("show_dialog")).toBe("true");

@@ -214,6 +214,10 @@ export async function updateSpotifyCipher(db: Firestore, uid: string, cipher: st
   await updateDoc(doc(db, "users", uid), { "spotify.cipher": cipher });
 }
 
+export async function updateSpotifyProfile(db: Firestore, uid: string, profile: { name: string; product: string }) {
+  await updateDoc(doc(db, "users", uid), { "spotify.name": profile.name, "spotify.product": profile.product });
+}
+
 export async function clearSpotifyConnection(db: Firestore, uid: string) {
   await updateDoc(doc(db, "users", uid), { spotify: deleteField() });
 }

@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useApp } from "@/components/app/AppProvider";
 import { toast } from "@/components/ui/toast";
-import { saveSpotifyConnection } from "@/lib/data/household";
+import { updateSpotifyProfile } from "@/lib/data/household";
 import { features } from "@/lib/features";
 import { firestore } from "@/lib/firebase/client";
 import { MusicError, type MusicDevice, type MusicItem, type PlaybackState } from "@/providers/music";
@@ -79,14 +79,30 @@ export function MusicContextProvider({ children }: { children: ReactNode }) {
     }
   }, [music, connected, handle]);
 
-  // fill account name / premium flag after first connection
+  const uid = user?.uid;
+  const cipher = spotify?.cipher;
+  // Recheck on each connection and when returning to HomeCal after changing the subscription.
   useEffect(() => {
-    if (!music || !connected || !user || spotify?.name) return;
-    music
-      .getProfile()
-      .then((p) => saveSpotifyConnection(firestore(), user.uid, { ...spotify!, name: p.name, product: p.product }))
-      .catch((e) => handle(e, true));
-  }, [music, connected, user, spotify, handle]);
+    if (!music || !connected || !uid || !cipher) return;
+    let stopped = false;
+    let pending = false;
+    const update = async () => {
+      if (stopped || pending) return;
+      pending = true;
+      try {
+        const profile = await music.getProfile();
+        if (!stopped) await updateSpotifyProfile(firestore(), uid, profile);
+      } catch (e) {
+        if (!stopped) handle(e, true);
+      } finally {
+        pending = false;
+      }
+    };
+    void update();
+    const onVisible = () => { if (document.visibilityState === "visible") void update(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { stopped = true; document.removeEventListener("visibilitychange", onVisible); };
+  }, [music, connected, uid, cipher, handle]);
 
   // polling: fast when playing or panel open, slow otherwise, paused when hidden
   useEffect(() => {
