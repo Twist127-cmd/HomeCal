@@ -7,7 +7,7 @@ import { normalizeAvatar } from "./config";
 import { isPet } from "./catalog";
 import type { AvatarConfig, AvatarContext, AnimationLevel } from "./types";
 const backgrounds: Record<string, string> = { neutral: "#dce0e5", warm: "#e8d6bc", sky: "#cbdde9", sage: "#d5dfce", rose: "#ead6df", night: "#263041" };
-export const AvatarRenderer = memo(function AvatarRenderer({ config, size = 100, context: override, intensity: level, decorative = true, label = "Avatar", stage = false, delay = 0 }: { config: AvatarConfig; size?: number; context?: AvatarContext; intensity?: AnimationLevel; decorative?: boolean; label?: string; stage?: boolean; delay?: number }) {
+export const AvatarRenderer = memo(function AvatarRenderer({ config, size = 100, context: override, intensity: level, decorative = true, label = "Avatar", stage = false, delay = 0, view = "front" }: { config: AvatarConfig; size?: number; context?: AvatarContext; intensity?: AnimationLevel; decorative?: boolean; label?: string; stage?: boolean; delay?: number; view?: "front" | "profile" }) {
   const shared = useAvatarContext(); const context = override ?? shared.context, intensity = level ?? shared.intensity;
   const c = useMemo(() => normalizeAvatar(config), [config]);
   const appearance = useMemo(() => composeAvatar(c, context, intensity), [c, context, intensity]);
@@ -27,12 +27,66 @@ export const AvatarRenderer = memo(function AvatarRenderer({ config, size = 100,
       </defs>
       <ellipse cx="120" cy="303" rx="83" ry="12" fill={grad("shadow")} />
       <g className="avatar-body">
-        {pet ? <Pet config={c} grad={grad} accessories={appearance.accessories} /> : <Human config={c} grad={grad} outfit={appearance.outfit} accessories={appearance.accessories} />}
+        {view === "profile" ? <ProfileView config={c} grad={grad} accessories={appearance.accessories} outfit={appearance.outfit} /> : pet ? <Pet config={c} grad={grad} accessories={appearance.accessories} /> : <Human config={c} grad={grad} outfit={appearance.outfit} accessories={appearance.accessories} />}
       </g>
     </svg>
   </span>;
 });
 type DrawProps = { config: AvatarConfig; grad(name: string): string; accessories: string[] };
+function ProfileView({ config: c, grad, accessories, outfit }: DrawProps & { outfit: string }) {
+  const pet = isPet(c.type), baby = c.type === "baby", child = c.type === "child";
+  const cy = pet ? 142 : baby ? 139 : child ? 123 : 105;
+  const top = cy - (pet ? 57 : baby ? 64 : 66);
+  const eye = pet ? c.pet.eyeColor : c.face.eyeColor;
+  const longHair = ["long", "medium", "braids", "locks", "ponytail"].includes(c.hair.style) || c.hair.length === "long";
+  const nose = c.face.nose === "wide" ? 17 : c.face.nose === "straight" ? 13 : 9;
+  const muzzle = c.pet.muzzle === "long" ? 38 : c.pet.muzzle === "flat" ? 14 : 25;
+  return <>
+    {pet ? <>
+      <g className="avatar-tail"><path d={c.pet.tail === "short" ? "M77 242Q53 221 61 209" : "M78 244Q30 257 43 201Q49 184 56 188"} fill="none" stroke={grad("skin")} strokeWidth={c.pet.tail === "fluffy" ? 23 : 13} strokeLinecap="round" /></g>
+      {[76, 153].map((x, i) => <g key={x} className={"avatar-leg avatar-leg-" + (i ? "right" : "left")}><path d={`M${x} 252L${x - 5} 290Q${x + 2} 304 ${x + 23} 296L${x + 13} 282V248Z`} fill={grad("skin")} /></g>)}
+      <ellipse cx="112" cy="240" rx={c.pet.silhouette === "long" ? 64 : 48} ry="40" fill={grad("skin")} />
+      {c.pet.markings !== "solid" && <ellipse cx="104" cy="233" rx="28" ry="25" fill={c.pet.markings === "patches" || c.pet.markings === "mask" ? "#ece6db" : "#3d3029"} opacity=".65" />}
+      <g className="avatar-head">
+        <ellipse cx="128" cy={cy} rx="42" ry="58" fill={grad("skin")} />
+        <path d={`M147 ${cy + 4}Q${170 + muzzle} ${cy} ${170 + muzzle} ${cy + 23}Q${170 + muzzle} ${cy + 43} 146 ${cy + 42}Z`} fill={grad("nose")} />
+        <ellipse cx={170 + muzzle} cy={cy + 15} rx="7" ry="6" fill={c.type === "cat" ? "#b97c7d" : "#302724"} />
+        <path d={`M${170 + muzzle} ${cy + 25}Q177 ${cy + 37} 166 ${cy + 28}`} fill="none" stroke="#58433b" strokeWidth="2" />
+        {["floppy", "long", "folded", "rounded"].includes(c.pet.ears) ? <ellipse cx="102" cy={cy - 3} rx="19" ry={c.pet.ears === "long" ? 53 : 37} fill={grad("skin")} /> : <path d={`M97 ${top + 32}L104 ${top - 27}Q129 ${top - 5} 133 ${top + 28}Z`} fill={grad("skin")} />}
+        {c.pet.markings === "mask" && <ellipse cx="151" cy={cy - 5} rx="17" ry="26" fill="#343330" opacity=".7" />}
+        <g className="avatar-eyes"><ellipse cx="152" cy={cy - 4} rx="10" ry="9" fill="#faf9f4" /><ellipse cx="156" cy={cy - 3} rx="5" ry="7" fill={eye} /><ellipse cx="157" cy={cy - 3} rx="2" ry="5" fill="#171d20" /><circle cx="155" cy={cy - 6} r="2" fill="white" /></g>
+        {c.type === "cat" && [-1, 0, 1].map(i => <path key={i} d={`M177 ${cy + 28}l32 ${i * 10}`} stroke="#eee7db" strokeWidth="1.5" />)}
+        {accessories.includes("bandana") && <path d={`M102 ${cy + 47}L141 ${cy + 76} 164 ${cy + 42}Z`} fill="#b97e66" />}
+        {accessories.includes("collar") && <path d={`M100 ${cy + 46}Q134 ${cy + 61} 164 ${cy + 43}`} stroke="#759c94" strokeWidth="9" fill="none" />}
+      </g>
+    </> : <>
+      {longHair && <path d={`M83 ${cy - 19}Q80 ${top - 13} 132 ${top - 14}L141 ${cy + 97}Q117 ${cy + 117} 85 ${cy + 85}Z`} fill={grad("hair")} />}
+      <g className="avatar-leg avatar-leg-left"><path d="M97 269L95 294Q103 305 134 297L127 288V267Z" fill="#38404c" /></g>
+      <g className="avatar-leg avatar-leg-right"><path d="M120 270L123 293Q137 305 163 296L144 286 140 268Z" fill="#465160" /></g>
+      <path d={`M94 ${cy + 70}Q122 ${cy + 52} 148 ${cy + 76}L150 280Q125 290 96 280Z`} fill={grad("outfit")} />
+      {outfit === "dress" && <path d={`M98 ${cy + 95}L84 286Q124 300 162 286L145 ${cy + 95}Z`} fill={grad("outfit")} />}
+      {outfit === "sport" && <path d={`M100 ${cy + 77}V275`} stroke="#faf5e8" strokeWidth="5" opacity=".8" />}
+      {(outfit === "chic" || outfit === "work") && <path d={`M140 ${cy + 70}L148 ${cy + 80} 142 ${cy + 120} 126 ${cy + 80}Z`} fill="#faf3e6" />}
+      {outfit === "winter" && [90, 107].map(offset => <path key={offset} d={`M98 ${cy + offset}H147`} stroke="#f7e4c7" strokeWidth="4" opacity=".45" />)}
+      <g className="avatar-arm avatar-arm-left"><path d={`M104 ${cy + 82}Q88 ${cy + 116} 103 271`} fill="none" stroke={grad("skin")} strokeWidth="15" strokeLinecap="round" /></g>
+      <rect x="118" y={cy + 43} width="23" height="35" rx="10" fill={grad("skin")} />
+      <g className="avatar-head">
+        <path d={`M89 ${cy + 7}Q73 ${top - 13} 129 ${top - 12}Q162 ${top - 9} 166 ${cy - 7}L${166 + nose} ${cy + 12}Q${176 + nose} ${cy + 23} 163 ${cy + 23}L163 ${cy + 40}Q154 ${cy + 66} 121 ${cy + 59}Q97 ${cy + 48} 89 ${cy + 7}Z`} fill={grad("skin")} />
+        <g transform="translate(39 0) scale(.72 1)"><Hair config={c} cy={cy} rx={55} ry={66} fill={grad("hair")} /></g>
+        <ellipse cx="105" cy={cy + 9} rx="10" ry="16" fill={grad("skin")} /><path d={`M105 ${cy + 1}Q113 ${cy + 10} 105 ${cy + 17}`} fill="none" stroke="#9a6650" strokeOpacity=".4" strokeWidth="2" />
+        <g className="avatar-eyes"><ellipse cx="154" cy={cy + 1} rx="8" ry="9" fill="#faf9f4" /><ellipse cx="158" cy={cy + 1} rx="4" ry="7" fill={eye} /><ellipse cx="159" cy={cy + 1} rx="2" ry="5" fill="#151a20" /><circle cx="157" cy={cy - 2} r="1.7" fill="white" /></g>
+        <path d={`M144 ${cy - 15}Q151 ${cy - 20} 161 ${cy - 14}`} stroke={c.hair.color} strokeWidth={c.face.brows === "thick" ? 5 : 3} strokeLinecap="round" fill="none" />
+        <path d={`M151 ${cy + 40}Q158 ${cy + 45} 165 ${cy + 37}`} fill="none" stroke="#794b43" strokeWidth="3" strokeLinecap="round" />
+        {c.face.beard !== "none" && <path d={`M115 ${cy + 33}Q142 ${cy + 53} 165 ${cy + 33}Q161 ${cy + 68} 137 ${cy + 69}Z`} fill={grad("hair")} />}
+        {c.face.cheeks === "rosy" && <ellipse cx="136" cy={cy + 24} rx="13" ry="8" fill="#d77573" opacity=".28" />}
+        <g transform="translate(39 0) scale(.72 1)"><HeadAccessories accessories={accessories} cy={cy} rx={55} top={top} /></g>
+      </g>
+      <g className="avatar-arm avatar-arm-right"><path d={`M137 ${cy + 83}Q146 ${cy + 116} 137 273`} fill="none" stroke={grad("skin")} strokeWidth="15" strokeLinecap="round" /></g>
+      {outfit === "kitchen" && <rect x="113" y={cy + 85} width="35" height={Math.max(30, 276 - cy - 85)} rx="9" fill="#a5b7a6" />}
+      {accessories.includes("scarf") && <path d={`M100 ${cy + 68}Q123 ${cy + 80} 150 ${cy + 66}`} fill="none" stroke="#ba9570" strokeWidth="13" />}
+    </>}
+  </>;
+}
 function Human({ config: c, grad, accessories: a, outfit }: DrawProps & { outfit: string }) {
   const baby = c.type === "baby", child = c.type === "child", teen = c.type === "teen";
   const cy = baby ? 139 : child ? 123 : teen ? 111 : 105;
@@ -44,8 +98,10 @@ function Human({ config: c, grad, accessories: a, outfit }: DrawProps & { outfit
   return <>
     {(a.includes("bag") || a.includes("schoolbag")) && <rect x={120 + width - 10} y={y + 35} width="33" height="63" rx="14" fill={a.includes("schoolbag") ? "#bb795e" : "#776850"} />}
     {longHair && <path d={`M${120 - rx - 3} ${cy - 20} Q120 ${cy - ry - 35} ${120 + rx + 3} ${cy - 20} L${120 + rx + 8} ${hairEnd} Q120 ${hairEnd + 17} ${120 - rx - 8} ${hairEnd}Z`} fill={grad("hair")} />}
-    <path d={`M${120 - width + 13} 280 L${120 - width + 12} 301 Q${120 - width + 40} 310 113 296 L114 270Z M${120 + width - 13} 280 L${120 + width - 12} 301 Q${120 + width - 40} 310 127 296 L126 270Z`} fill="#38404c" />
-    <path d={`M${120 - width} ${y + 40} Q${120 - width - 15} ${y + 60} ${120 - width - 4} ${Math.min(286, y + 100)} Q${120 - width + 5} 298 ${120 - width + 12} 279 L${120 - width + 15} ${y + 42}Z M${120 + width} ${y + 40} Q${120 + width + 15} ${y + 60} ${120 + width + 4} ${Math.min(286, y + 100)} Q${120 + width - 5} 298 ${120 + width - 12} 279 L${120 + width - 15} ${y + 42}Z`} fill={grad("skin")} />
+    <g className="avatar-leg avatar-leg-left"><path d={`M${120 - width + 13} 280 L${120 - width + 12} 301 Q${120 - width + 40} 310 113 296 L114 270Z`} fill="#38404c" /></g>
+    <g className="avatar-leg avatar-leg-right"><path d={`M${120 + width - 13} 280 L${120 + width - 12} 301 Q${120 + width - 40} 310 127 296 L126 270Z`} fill="#38404c" /></g>
+    <g className="avatar-arm avatar-arm-left"><path d={`M${120 - width} ${y + 40} Q${120 - width - 15} ${y + 60} ${120 - width - 4} ${Math.min(286, y + 100)} Q${120 - width + 5} 298 ${120 - width + 12} 279 L${120 - width + 15} ${y + 42}Z`} fill={grad("skin")} /></g>
+    <g className="avatar-arm avatar-arm-right"><path d={`M${120 + width} ${y + 40} Q${120 + width + 15} ${y + 60} ${120 + width + 4} ${Math.min(286, y + 100)} Q${120 + width - 5} 298 ${120 + width - 12} 279 L${120 + width - 15} ${y + 42}Z`} fill={grad("skin")} /></g>
     <path d={`M${120 - width} ${y + 25} Q120 ${y - 10} ${120 + width} ${y + 25} L${120 + width - 5} 281 Q120 299 ${120 - width + 5} 281Z`} fill={grad("outfit")} />
     <rect x="108" y={y - 14} width="24" height="35" rx="12" fill={grad("skin")} />
     <path d={`M96 ${y + 17} Q120 ${y + 38} 144 ${y + 17}`} fill="none" stroke="#111923" strokeOpacity=".17" strokeWidth="5" />
@@ -106,7 +162,7 @@ function Pet({ config: c, grad, accessories: a }: DrawProps) {
     <g className="avatar-tail"><path d={p.tail === "curled" ? "M160 248Q227 281 210 225Q193 202 187 234" : p.tail === "short" ? "M159 259Q181 267 183 253" : cat ? "M160 261Q212 296 211 212Q207 176 194 185" : "M160 254Q196 267 210 222"} fill="none" stroke={grad("skin")} strokeWidth={p.tail === "fluffy" ? 25 : 14} strokeLinecap="round" /></g>
     <ellipse cx="120" cy="247" rx={body} ry={p.size === "small" ? 43 : 50} fill={grad("skin")} />
     {p.markings === "patches" || p.markings === "points" || p.markings === "saddle" ? <ellipse cx="143" cy="245" rx={body * .6} ry="29" fill="#392d28" opacity=".7" /> : null}
-    {[1, -1].map((s) => <g key={s}><ellipse cx={120 + s * 26} cy="276" rx="15" ry="24" fill={grad("skin")} /><ellipse cx={120 + s * 26} cy="295" rx="19" ry="8" fill={grad("skin")} /></g>)}
+    {[1, -1].map((s) => <g key={s} className={"avatar-leg avatar-leg-" + (s === 1 ? "right" : "left")}><ellipse cx={120 + s * 26} cy="276" rx="15" ry="24" fill={grad("skin")} /><ellipse cx={120 + s * 26} cy="295" rx="19" ry="8" fill={grad("skin")} /></g>)}
     {(a.includes("collar") || a.includes("tag") || a.includes("bandana") || a.includes("bow")) && <path d={`M77 ${cy + 43}Q120 ${cy + 67} 163 ${cy + 43}`} fill="none" stroke="#759c94" strokeWidth="11" />}
     {a.includes("harness") && <path d="M86 218L154 275M154 218L86 275" stroke="#bb765b" strokeWidth="10" />}
     {a.includes("bandana") && <path d={`M84 ${cy + 47}L120 ${cy + 85} 156 ${cy + 47}Q120 ${cy + 65} 84 ${cy + 47}`} fill="#b97e66" />}

@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import { useEffect, type ButtonHTMLAttributes, type ReactNode } from "react";
 import type { Profile } from "@/lib/types";
 import { AvatarRenderer } from "@/avatar/AvatarRenderer";
+import { useAvatarContext } from "@/avatar/AvatarProvider";
 
 export function Button({
   variant = "default",
@@ -56,8 +57,9 @@ export function Chip({
 }
 
 export function Avatar({ profile, size = 28, ring }: { profile?: Profile; size?: number; ring?: boolean }) {
+  const { visible } = useAvatarContext();
   if (!profile) return null;
-  if (profile.avatarConfig) return <span title={profile.name} className={clsx("inline-flex shrink-0 rounded-full", ring && "ring-2 ring-surface")}><AvatarRenderer config={profile.avatarConfig} size={size} /></span>;
+  if (profile.avatarConfig && visible) return <span title={profile.name} className={clsx("inline-flex shrink-0 rounded-full", ring && "ring-2 ring-surface")}><AvatarRenderer config={profile.avatarConfig} size={size} /></span>;
   const isEmoji = /\p{Extended_Pictographic}/u.test(profile.avatar);
   return (
     <span

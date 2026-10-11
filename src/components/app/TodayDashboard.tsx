@@ -120,10 +120,10 @@ export function TodayDashboard({ now, next, departure, today, editing, onEditing
         <div className="min-w-0 w-full">
           <div className="home-greeting-row">
             <h1 className="home-greeting">{greeting(now.getHours())}</h1>
-            <AvatarGreeting profiles={profiles} profileId={myProfileId} />
           </div>
           <p className="home-date">{capitalize(fmt(now, "EEEE d MMMM"))}</p>
           <p className="mt-3 max-w-md text-sm leading-relaxed text-muted">{today.length ? today.length + (today.length > 1 ? " moments prévus aujourd’hui." : " moment prévu aujourd’hui.") : "La maison prend le temps de vivre."}</p>
+          <AvatarGreeting profiles={profiles} profileId={myProfileId} />
         </div>
       </header>
 

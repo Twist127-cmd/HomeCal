@@ -11,7 +11,7 @@ import { expandEvents } from "@/lib/recurrence";
 import { addDays, startOfDay } from "@/lib/dates";
 import { avatarPeriod, avatarSeason, DEFAULT_AVATAR_CONTEXT, specialDate } from "./AvatarContextEngine";
 import type { AnimationLevel, AvatarContext } from "./types";
-const Context = createContext<{ context: AvatarContext; intensity: AnimationLevel; setIntensity(level: AnimationLevel): void }>({ context: DEFAULT_AVATAR_CONTEXT, intensity: "normal", setIntensity: () => {} });
+const Context = createContext<{ context: AvatarContext; intensity: AnimationLevel; setIntensity(level: AnimationLevel): void; visible: boolean; setVisible(value: boolean): void; walking: boolean; setWalking(value: boolean): void }>({ context: DEFAULT_AVATAR_CONTEXT, intensity: "normal", setIntensity: () => {}, visible: true, setVisible: () => {}, walking: true, setWalking: () => {} });
 export const useAvatarContext = () => useContext(Context);
 export function AvatarProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
@@ -23,6 +23,8 @@ export function AvatarProvider({ children }: { children: ReactNode }) {
   const { preset } = useDesign(); const music = useMusic(); const { active } = useScenes();
   const now = useNow(60_000); const { next, departure } = useNextDeparture(now);
   const [stored, save] = useLocalValue("homecal.avatar-motion.v1." + (householdId ?? "guest"), "normal");
+  const [display, saveDisplay] = useLocalValue("homecal.avatar-visible.v1." + (householdId ?? "guest"), "true");
+  const [walk, saveWalk] = useLocalValue("homecal.avatar-walking.v1." + (householdId ?? "guest"), "true");
   const intensity: AnimationLevel = stored === "reduced" || stored === "lively" ? stored : "normal";
   const period = avatarPeriod(now.getHours()), season = avatarSeason(now.getMonth());
   const holiday = specialDate(now);
@@ -33,6 +35,6 @@ export function AvatarProvider({ children }: { children: ReactNode }) {
   const playing = music.connected && !!music.playback?.isPlaying;
   const scene = active?.name ?? "";
   const context = useMemo<AvatarContext>(() => ({ theme: preset.id, scene, dayPeriod: period, season, specialDate: anniversary ? "birthday" : holiday, musicPlaying: playing, cooking, departureSoon, eventSoon }), [preset.id, scene, period, season, anniversary, holiday, playing, cooking, departureSoon, eventSoon]);
-  const value = useMemo(() => ({ context, intensity, setIntensity: (level: AnimationLevel) => { save(level); } }), [context, intensity, save]);
+  const value = useMemo(() => ({ context, intensity, setIntensity: (level: AnimationLevel) => { save(level); }, visible: display !== "false", setVisible: (value: boolean) => { saveDisplay(String(value)); }, walking: walk !== "false", setWalking: (value: boolean) => { saveWalk(String(value)); } }), [context, intensity, save, display, saveDisplay, walk, saveWalk]);
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }

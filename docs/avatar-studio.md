@@ -20,6 +20,14 @@ Le moteur compose des couches : identité → thème → saison/date → heure �
 
 Dans **Réglages → Apparence → Animations avatars**, choisir Réduit, Normal ou Vivant, mémorisé par appareil et foyer. Le contexte est dérivé une fois par minute ou lors d’un changement de scène, thème, lecture ou données. Les animations utilisent CSS, sans boucle JavaScript par avatar. Le renderer est mémorisé ; les icônes inférieures à 48 px restent statiques et les animations sont suspendues lorsque la page est cachée. La nuit réduit les mouvements. `prefers-reduced-motion` arrête les animations.
 
+## Promenade et affichage
+
+Le bandeau d’accueil présente l’avatar du profil connecté, sinon un profil personnalisé du foyer, sinon un avatar provisoire. Ce rendu provisoire n’écrit aucune configuration dans Firestore. La promenade traverse toute la largeur du bandeau, avec accélération et ralentissement progressifs, petits pas alternés, vue latérale dessinée et transitions par une vue de trois quarts/face aux changements de direction. Les humains et animaux disposent de dessins latéraux distincts ; les couleurs et traits dérivent de la configuration existante.
+
+Dans **Réglages → Apparence → Affichage des avatars**, **Afficher les avatars** masque ou affiche les présences et portraits personnalisés ; les repères historiques des profils restent disponibles. **Activer la promenade dans le bandeau** garde l’avatar visible et immobile lorsqu’elle est désactivée. Les deux options sont indépendantes et mémorisées par foyer sur cet appareil. Avatar Studio garde son aperçu pour permettre la personnalisation même lorsque les avatars sont masqués. Réinitialiser toute la personnalisation réactive les deux options. Le mode Réduit, la réduction des mouvements du système, le sommeil, la danse et les alertes suspendent la promenade ; une page cachée suspend toutes ses animations.
+
+Vérification ciblée : traversée complète sur quatre formats, six types de profils vus de côté, retour de face au demi-tour, alternance des pas, masquage et arrêt de la promenade depuis les vrais réglages avec rechargement de page, absence de débordement et d’erreur SVG.
+
 ## Vérification
 
 - Suite métier et schéma : 1 476 tests réussis au total, 8 tests préexistants ignorés ; 29 tests spécifiques aux avatars et à l’écriture Firestore.

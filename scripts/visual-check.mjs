@@ -121,6 +121,7 @@ const errors=[];
 if (process.env.HOMECAL_QA_GREETING) {
   const page = await browser.newPage();
   page.on("pageerror", error => errors.push(error.message));
+  page.on("console", message => { if (message.type() === "error" && /<path>|<svg>|attribute d:/.test(message.text())) errors.push(message.text()); });
   await page.clock.install({ time: new Date(2026, 9, 11, 14, 30) });
   await page.goto("http://127.0.0.1:4173");
   const walker = page.locator(".avatar-greeting-walk");
@@ -135,22 +136,78 @@ if (process.env.HOMECAL_QA_GREETING) {
       return el.getBoundingClientRect().x;
     });
     const moved = await walker.evaluate(el => {
-      el.getAnimations()[0].currentTime = 10_800;
+      const animation = el.getAnimations()[0];
+      animation.currentTime = Number(animation.effect.getTiming().duration) * .46;
       return el.getBoundingClientRect().x;
     });
-    assert.ok(moved > initial + 10, "avatar walks: " + size.name);
+    const laneWidth = await page.locator(".avatar-greeting").evaluate(el => el.clientWidth);
+    assert.ok(Math.abs(moved - initial - (laneWidth - 84)) < 2, "avatar traverses full banner: " + size.name);
+    await page.locator(".avatar-greeting").evaluate(el => {
+      for (const animation of el.getAnimations({ subtree: true })) {
+        animation.pause();
+        animation.currentTime = Number(animation.effect.getTiming().duration) * .3;
+      }
+    });
+    assert.equal(await page.locator(".avatar-greeting-profile").evaluate(el => getComputedStyle(el).opacity), "1", "side view while walking");
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, "greeting overflow: " + size.name);
     await page.screenshot({ path: out + "/greeting-" + size.name + ".png" });
   }
+  await page.locator(".avatar-greeting").evaluate(el => {
+    for (const animation of el.getAnimations({ subtree: true })) {
+      animation.currentTime = Number(animation.effect.getTiming().duration) * .5;
+    }
+  });
+  assert.equal(await page.locator(".avatar-greeting-front").evaluate(el => getComputedStyle(el).opacity), "1", "front view during quarter turn");
+  await page.screenshot({ path: out + "/greeting-quarter-turn.png" });
+  const leg = page.locator(".avatar-greeting-profile .avatar-leg-left").first();
+  const strides = await leg.evaluate(el => {
+    const animation = el.getAnimations()[0]; animation.currentTime = 0;
+    const first = getComputedStyle(el).transform;
+    animation.currentTime = 360;
+    return [first, getComputedStyle(el).transform];
+  });
+  assert.notEqual(strides[0], strides[1], "feet alternate steps");
   await page.emulateMedia({ reducedMotion: "reduce" });
   assert.equal(await walker.evaluate(el => getComputedStyle(el).animationName), "none");
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.evaluate(() => window.fixtureFamily());
+  for (const type of ["adult", "teen", "child", "baby", "dog", "cat"]) {
+    await page.evaluate(type => {
+      const member = window.fixtureApp.profiles.find(p => p.avatarConfig.type === (type === "teen" ? "adult" : type));
+      window.fixtureApp.profiles = [{ ...member, id: "emma", name: "Emma", avatarConfig: { ...member.avatarConfig, type } }];
+      window.fixtureEmit();
+    }, type);
+    // Restore the family fixture between types, and inspect the actual side drawing.
+    await page.waitForFunction(type => document.querySelector(".avatar-greeting-profile .avatar-renderer")?.dataset.type === type, type);
+    await page.locator(".avatar-greeting").evaluate(el => {
+      for (const animation of el.getAnimations({ subtree: true })) { animation.pause(); animation.currentTime = Number(animation.effect.getTiming().duration) * .3; }
+    });
+    await page.screenshot({ path: out + "/avatar-walking-profile-" + type + ".png" });
+    await page.evaluate(() => window.fixtureFamily());
+  }
+  await page.goto("http://127.0.0.1:4173/settings#apparence");
+  await page.getByRole("checkbox", { name: "Activer la promenade dans le bandeau", exact: true }).uncheck();
+  await page.goto("http://127.0.0.1:4173");
+  await page.locator('.avatar-greeting[data-walking="false"]').waitFor();
+  assert.equal(await walker.evaluate(el => getComputedStyle(el).animationName), "none", "walking toggle persists");
+  await page.goto("http://127.0.0.1:4173/settings#apparence");
+  await page.getByRole("checkbox", { name: "Afficher les avatars", exact: true }).uncheck();
+  await page.goto("http://127.0.0.1:4173");
+  await page.getByRole("heading", { level: 1 }).waitFor();
+  assert.equal(await page.locator(".avatar-greeting, .avatar-family-scene, .avatar-renderer").count(), 0, "hidden avatars persist after navigation");
+  await page.goto("http://127.0.0.1:4173/settings#apparence");
+  await page.getByRole("checkbox", { name: "Afficher les avatars", exact: true }).check();
+  await page.getByRole("checkbox", { name: "Activer la promenade dans le bandeau", exact: true }).check();
+  await page.screenshot({ path: out + "/avatar-display-options.png", fullPage: true });
+  await page.goto("http://127.0.0.1:4173");
+  await walker.waitFor();
   await page.evaluate(() => { window.fixtureApp.profiles = window.fixtureApp.profiles.map(p => ({ ...p, avatarConfig: undefined })); window.fixtureEmit(); });
-  await page.locator('.avatar-greeting[aria-label="Avatar de Emma"] svg').waitFor();
+  await page.locator('.avatar-greeting[aria-label="Avatar de Emma"] svg').first().waitFor();
   await page.evaluate(() => { window.fixtureApp.profiles = []; window.fixtureEmit(); });
-  await page.locator('.avatar-greeting[aria-label="Avatar HomeCal"] svg').waitFor();
+  await page.locator('.avatar-greeting[aria-label="Avatar HomeCal"] svg').first().waitFor();
   assert.deepEqual(errors, []);
   await browser.close(); server.close();
-  console.log("PASS: greeting avatar walks across 4 viewports; reduced motion and unconfigured/empty profiles verified.");
+  console.log("PASS: full-width walk, side view, quarter turn, alternating steps, 4 viewports, visibility/walking settings persistence, reduced motion and fallback avatars.");
   process.exit(0);
 }
 try {
