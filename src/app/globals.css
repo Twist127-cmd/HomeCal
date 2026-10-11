@@ -96,6 +96,27 @@ button, a, input, select, textarea { transition-duration: 200ms; }
   content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
   background: radial-gradient(ellipse at 78% 4%, color-mix(in srgb, var(--scene-light) 75%, transparent), transparent 65%), linear-gradient(155deg, var(--scene-sky), var(--color-bg) 58%, var(--scene-ground));
 }
+/* Two soft, composited colour layers: no animated blur or per-frame JavaScript. */
+.home-shell::before {
+  inset: -8%;
+  background: radial-gradient(ellipse at 15% 25%, var(--flow-primary, var(--scene-light)), transparent 64%), radial-gradient(ellipse at 85% 75%, var(--flow-secondary, var(--scene-sky)), transparent 68%), linear-gradient(135deg, var(--color-bg), var(--flow-tertiary, var(--scene-ground)));
+  animation: home-colour-flow 42s ease-in-out infinite alternate;
+  transform-origin: center;
+}
+.home-shell::after {
+  content: ""; position: absolute; inset: -8%; z-index: -1; pointer-events: none;
+  background: radial-gradient(ellipse at 75% 15%, var(--flow-secondary, var(--scene-sky)), transparent 60%), radial-gradient(ellipse at 20% 90%, var(--flow-primary, var(--scene-light)), transparent 62%);
+  animation: home-colour-tide 34s ease-in-out infinite alternate;
+  opacity: .35;
+}
+@keyframes home-colour-flow {
+  from { transform: translate(-2%, -1%) scale(1); }
+  to { transform: translate(3%, 2%) scale(1.06); }
+}
+@keyframes home-colour-tide {
+  from { transform: translate(2%, -2%) scale(1.04); opacity: .2; }
+  to { transform: translate(-3%, 3%) scale(1); opacity: .6; }
+}
 .glass-panel {
   background: var(--glass); border: 1px solid var(--glass-border);
   border-radius: var(--radius-card); box-shadow: var(--shadow-card);
