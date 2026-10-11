@@ -6,6 +6,7 @@ import { AlertTriangle, ChevronLeft, ChevronRight, Mic, Moon, Music2, Settings, 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { TodayDashboard } from "@/components/app/TodayDashboard";
+import { AvatarFamilyScene } from "@/components/avatar/AvatarFamilyScene";
 import { WeatherIcon } from "@/components/ui/WeatherIcon";
 import { AmbientScreen } from "@/components/app/AmbientScreen";
 import { useApp } from "@/components/app/AppProvider";
@@ -267,7 +268,7 @@ export function HomeScreen() {
       <div className="flex shrink-0 flex-col gap-2 px-3 pt-3 sm:px-5 lg:flex-row lg:items-center">
         <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 lg:max-w-[45%]">
           <Chip active={!filter} onClick={() => setFilter(null)}>
-            Tous
+            Famille
           </Chip>
           {profiles.map((p) => (
             <Chip key={p.id} active={filter === p.id} color={p.color} onClick={() => setFilter(filter === p.id ? null : p.id)}>
@@ -285,6 +286,7 @@ export function HomeScreen() {
       </div>
 
       {/* ---------- contextual row: departure, quick actions, timers ---------- */}
+      <AvatarFamilyScene profiles={profiles} selected={filter} />
       <div className="flex shrink-0 items-center gap-2 overflow-hidden px-3 py-3 sm:px-5">
         <DeparturePill departure={departure} className="shrink-0" />
         <div className="min-w-0 flex-1">

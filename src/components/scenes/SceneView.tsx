@@ -22,9 +22,11 @@ import type { Occurrence, Scene, SceneWidget } from "@/lib/types";
 import { describeWeather } from "@/providers/weather/WeatherProvider";
 import { WeatherIcon } from "@/components/ui/WeatherIcon";
 import { useScenes } from "./SceneContext";
+import { AvatarFamilyScene } from "@/components/avatar/AvatarFamilyScene";
 
 /** Full-screen scene ("Matin", "Cuisine", "Soir"…) built from the scene's widgets. */
 export function SceneView({ scene, onOpenMusic }: { scene: Scene; onOpenMusic(): void }) {
+  const { profiles } = useApp();
   const { scenes, activate, exit } = useScenes();
   const now = useNow(15_000);
   const big = (w: SceneWidget) => scene.large && (w === "timers" || w === "shopping" || w === "music");
@@ -51,6 +53,7 @@ export function SceneView({ scene, onOpenMusic }: { scene: Scene; onOpenMusic():
       </header>
 
       <div className="scroll-thin min-h-0 flex-1 overflow-y-auto px-4 pb-6 sm:px-6">
+        <AvatarFamilyScene profiles={profiles} />
         <div className="grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {scene.widgets.map((w) => (
             <Card key={w} className={clsx(big(w) && "md:row-span-2", (w === "agenda" || w === "tomorrow") && "xl:row-span-2")}>

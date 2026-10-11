@@ -13,6 +13,7 @@ await mkdir(out, { recursive: true });
 const state = `
 import { useSyncExternalStore } from "react";
 import { DEFAULT_SETTINGS } from "@/lib/types";
+import { defaultAvatar } from "@/avatar/config";
 const now = new Date();
 const start = new Date(now.getTime() + 3600000);
 const end = new Date(start.getTime() + 3600000);
@@ -23,7 +24,7 @@ const voices = [{ name:"Voix française de test",voiceURI:"fixture-fr",lang:"fr-
 export const app = {
  status:"ready", household:{id:"fixture",name:"La maison",ownerUid:"fixture",memberUids:["fixture"],settings:{...DEFAULT_SETTINGS,ambientAfterSec:0,nightMode:{enabled:false,start:"22:30",end:"06:30"}}},
  householdId:"fixture", user:{uid:"fixture",email:"fixture@example.test"}, myProfileId:"emma",
- profiles:[{id:"emma",name:"Emma",avatar:"E",color:"#857c9e",type:"PERSON",memberIds:[],order:0}],
+ profiles:[{id:"emma",name:"Emma",avatar:"E",avatarConfig:defaultAvatar("adult"),color:"#857c9e",type:"PERSON",memberIds:[],order:0}],
  events:[event],reminders:[],history:[],places:[], homePlace:{id:"home",name:"Lyon",address:"Lyon",lat:45.75,lng:4.85,icon:"",profileIds:[],order:0},
  shopping:["Lait","Œufs","Pain complet","Tomates","Bananes","Café"].map((name,i)=>({id:String(i),name,checked:false,createdAt:now.toISOString()})),
  timers:[{id:"timer",label:"Pâtes",duration:600000,createdAt:now.toISOString(),expiresAt:new Date(now.getTime()+504000).toISOString(),status:"running"}],
@@ -33,6 +34,7 @@ export const app = {
  tts:{isSupported:()=>true,getVoices:()=>voices,onVoicesChanged:()=>()=>{},speak:()=>{},stop:()=>{}},
 };
 let version=0; const listeners=new Set(); export const emit=()=>{version++;listeners.forEach(l=>l());};
+export function family(){app.profiles=[["emma","Emma","adult"],["leo","Léo","child"],["mia","Mia","baby"],["rex","Rex","dog"],["milo","Milo","cat"]].map(([id,name,type],i)=>({id,name,type:"PERSON",color:"#857c9e",avatar:name[0],avatarConfig:defaultAvatar(type),memberIds:[],order:i}));emit()}
 export const hook=()=>useSyncExternalStore(l=>{listeners.add(l);return()=>listeners.delete(l)},()=>version,()=>0);
 let activeId=null;
 export const scenes=()=>({scenes:app.scenes,active:app.scenes.find(s=>s.id===activeId)||null,suggested:null,activate:id=>{activeId=id;emit()},exit:()=>{activeId=null;emit()}});
@@ -55,6 +57,7 @@ const mocks = {
  "@/hooks/useTravel": 'import {departure} from "@fixture"; export function useTravel(occ){return occ ? departure.travel : null}',
  "@/hooks/useNextDeparture": 'import {departure} from "@fixture"; export function useNextDeparture(){return {next:departure.occ,departure}}',
  "@/lib/firebase/client": 'export const firebaseConfigured=false; export const firestore=()=>({}); export const auth=()=>({});',
+ "@/avatar/data": 'import {app,emit} from "@fixture"; export async function saveAvatarConfig(db,hid,id,avatarConfig){if(app.avatarSaveFail)throw new Error("offline");app.profiles=app.profiles.map(p=>p.id===id?{...p,avatarConfig}:p);emit()}',
  "@/components/assistant/useAssistantRunner": 'export function useAssistantRunner(){return async()=>null}',
  "next/link": 'export default function Link({href,children,...props}){return <a href={href} {...props} onClick={e=>{e.preventDefault();history.pushState(null,"",href);dispatchEvent(new Event("popstate"))}}>{children}</a>}',
 };
@@ -66,9 +69,10 @@ import {Appearance} from "@/components/app/Appearance";
 import {HomeScreen} from "@/components/app/HomeScreen";
 import {SettingsScreen} from "@/components/settings/SettingsScreen";
 import {VoiceOverlay} from "@/components/voice/VoiceOverlay";
-import {app,music,emit} from "@fixture";
+import {app,music,emit,family} from "@fixture";
 import {ThemeProvider} from "@/theme/ThemeProvider";
 import {MusicPresentation} from "@/components/music/MusicPresentation";
+import {AvatarProvider} from "@/avatar/AvatarProvider";
 function Fixture(){
  const [path,setPath]=useState(location.pathname);
  useEffect(()=>{const change=()=>setPath(location.pathname);addEventListener("popstate",change);return()=>removeEventListener("popstate",change)},[]);
@@ -78,7 +82,8 @@ function Fixture(){
 }
 window.fixtureApp=app;
 window.fixtureMusic=music; window.fixtureEmit=emit;
-createRoot(document.getElementById("root")).render(<ThemeProvider><MusicPresentation><Fixture/></MusicPresentation></ThemeProvider>);
+window.fixtureFamily=family;
+createRoot(document.getElementById("root")).render(<ThemeProvider><MusicPresentation><AvatarProvider><Fixture/></AvatarProvider></MusicPresentation></ThemeProvider>);
 `;
 await build({
  stdin:{contents:fixture,resolveDir:process.cwd(),sourcefile:"fixture.jsx",loader:"jsx"},
@@ -117,7 +122,7 @@ try {
  for(const size of (process.env.HOMECAL_QA_FAST ? [] : sizes))for(const theme of ["light","dark"])for(const [period,hour] of [["morning",8],["day",14],["evening",20],["night",1]]) {
   const context=await browser.newContext({viewport:{width:size.width,height:size.height},colorScheme:theme,reducedMotion:"reduce"});
   const page=await context.newPage();
-  page.on("console",m=>console.log("BROWSER_CONSOLE:"+m.type()+":"+m.text()));
+  page.on("console",m=>{console.log("BROWSER_CONSOLE:"+m.type()+":"+m.text());if(m.type()==="error"&&/<path>|<svg>|attribute d:/.test(m.text()))errors.push(m.text())});
  page.on("pageerror",e=>{errors.push(e.message);console.log("BROWSER_ERROR:"+e.name+":"+e.message+":"+e.stack)});
   await page.clock.install({time:new Date(2026,3,26,hour,42)});
   await page.addInitScript(({theme,period})=>{localStorage.setItem("homecal.theme",theme);document.addEventListener("DOMContentLoaded",()=>{document.documentElement.classList.toggle("dark",theme==="dark");document.documentElement.dataset.period=period},{once:true})},{theme,period});
@@ -133,7 +138,7 @@ try {
  }
  const context=await browser.newContext({viewport:{width:1200,height:800},reducedMotion:"reduce"});
  const page=await context.newPage();
- page.on("console",m=>console.log("BROWSER_CONSOLE:"+m.type()+":"+m.text()));
+ page.on("console",m=>{console.log("BROWSER_CONSOLE:"+m.type()+":"+m.text());if(m.type()==="error"&&/<path>|<svg>|attribute d:/.test(m.text()))errors.push(m.text())});
  page.on("pageerror",e=>{errors.push(e.message);console.log("BROWSER_ERROR:"+e.name+":"+e.message+":"+e.stack)});
  await page.clock.install({time:new Date(2026,3,26,8,42)});
  await page.goto("http://127.0.0.1:4173");
@@ -209,7 +214,7 @@ try {
    await page.goto("http://127.0.0.1:4173/settings#apparence");
  }
  await page.setViewportSize({width:1200,height:800});
- for(const name of ["Compact","Normal","Confort"]){await page.getByRole("button",{name,exact:true}).click();await page.screenshot({path:out+"/density-"+name+".png",fullPage:true});}
+ for(const name of ["Compact","Normal","Confort"]){await page.getByRole("group",{name:"Densité",exact:true}).getByRole("button",{name,exact:true}).click();await page.screenshot({path:out+"/density-"+name+".png",fullPage:true});}
  await page.getByRole("button",{name:"Personnaliser l’accueil",exact:true}).click();
  // A real touch pointer stream on the drag handle (tablet), then keyboard arrows.
  await page.locator('[data-layout-row="clock"]').evaluate(el=>el.scrollIntoView({block:"start"}));
@@ -258,8 +263,71 @@ try {
  await page.screenshot({path:out+"/spotify-empty.png"});
  await page.keyboard.press("Escape");
  assert.equal(await page.getByRole("dialog").count(),0);
+ // Real profile entry, Studio, and saved configuration, using the isolated store.
+ await page.setViewportSize({width:1200,height:800});
+ await page.goto("http://127.0.0.1:4173/settings#profils");
+ await page.getByRole("button",{name:/Emma.*Personne/}).click();
+ await page.getByRole("button",{name:"Avatar — ouvrir Avatar Studio",exact:true}).click();
+ await page.getByRole("dialog",{name:"Avatar Studio",exact:true}).waitFor();
+ for(const [name,type] of [["Adulte","adult"],["Adolescent","teen"],["Enfant","child"],["Bébé","baby"],["Chien","dog"],["Chat","cat"]]){
+   await page.getByRole("navigation",{name:"Catégories de l’avatar",exact:true}).getByRole("button",{name:"Type",exact:true}).click();
+   await page.getByRole("group",{name:"Qui représente cet avatar ?",exact:true}).getByRole("button",{name,exact:true}).click();
+   assert.equal(await page.locator(".avatar-preview .avatar-renderer").getAttribute("data-type"),type);
+   for(const size of sizes){await page.setViewportSize({width:size.width,height:size.height});await page.screenshot({path:out+"/avatar-"+type+"-"+size.name+".png"});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,"avatar studio overflow: "+type+" "+size.name);}
+ }
+ await page.setViewportSize({width:1200,height:800});
+ for(const [species,names] of [["Chien",["Cocker","Golden Retriever","Labrador","Teckel","Husky"]],["Chat",["Européen","Maine Coon","Siamois","Bengal"]]]){
+   await page.getByRole("navigation",{name:"Catégories de l’avatar"}).getByRole("button",{name:"Type",exact:true}).click();
+   await page.getByRole("group",{name:"Qui représente cet avatar ?"}).getByRole("button",{name:species,exact:true}).click();
+   await page.getByRole("navigation",{name:"Catégories de l’avatar"}).getByRole("button",{name:"Race",exact:true}).click();
+   for(const name of names){await page.getByRole("button",{name,exact:true}).click();await page.waitForFunction(name=>[...document.querySelectorAll('.avatar-options button')].some(b=>b.textContent===name&&b.getAttribute('aria-pressed')==='true'),name);await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));await page.screenshot({path:out+"/avatar-breed-"+name.replaceAll(" ","-")+".png"});}
+ }
+ await page.getByRole("button",{name:"Réinitialiser",exact:true}).click();
+ await page.getByRole("alertdialog").getByRole("button",{name:"Annuler",exact:true}).click();
+ await page.evaluate(()=>window.fixtureApp.avatarSaveFail=true);
+ await page.getByRole("button",{name:"Terminé",exact:true}).click();
+ await page.getByRole("alert").getByText("Impossible d’enregistrer l’avatar. Réessayez.",{exact:true}).waitFor();
+ assert.equal(await page.locator('.avatar-preview .avatar-renderer').getAttribute('data-breed'),'bengal');
+ await page.evaluate(()=>window.fixtureApp.avatarSaveFail=false);
+ await page.getByRole("button",{name:"Terminé",exact:true}).click();
+ assert.equal(await page.evaluate(()=>window.fixtureApp.profiles[0].avatarConfig.pet.breed),"bengal");
+ await page.getByRole("button",{name:"Avatar — ouvrir Avatar Studio",exact:true}).click();
+ await page.getByRole("button",{name:"Aléatoire",exact:true}).click();
+ await page.getByRole("button",{name:"Retour au profil",exact:true}).click();
+ assert.equal(await page.evaluate(()=>window.fixtureApp.profiles[0].avatarConfig.pet.breed),"bengal","cancel saved draft");
+ await page.getByRole("button",{name:"Avatar — ouvrir Avatar Studio",exact:true}).click();
+ await page.getByRole("button",{name:"Réinitialiser",exact:true}).click();
+ await page.getByRole("button",{name:"Confirmer la réinitialisation",exact:true}).click();
+ assert.equal(await page.locator('.avatar-preview .avatar-renderer').getAttribute('data-breed'),'european');
+ assert.equal(await page.evaluate(()=>window.fixtureApp.profiles[0].avatarConfig.pet.breed),'bengal');
+ await page.getByRole("button",{name:"Retour au profil",exact:true}).click();
+ await page.getByRole("button",{name:"Fermer",exact:true}).click();
+ await page.goto("http://127.0.0.1:4173");
+ await page.getByRole("button",{name:"Calendrier",exact:true}).click();
+ await page.getByRole("region",{name:"Avatars de la famille",exact:true}).waitFor();
+ await page.screenshot({path:out+"/avatar-family-calendar.png"});
+ await page.getByRole("button",{name:"Emma",exact:true}).click();
+ await page.getByRole("region",{name:"Avatar du calendrier sélectionné",exact:true}).waitFor();
+ await page.screenshot({path:out+"/avatar-profile-calendar.png"});
+ await page.evaluate(()=>{window.fixtureFamily();window.fixtureMusic.playback={isPlaying:true,item:{uri:"fixture:track",type:"track",name:"La musique de la maison"},device:null,progressMs:0,durationMs:180000,fetchedAt:Date.now()};window.fixtureEmit()});
+ await page.getByRole("button",{name:"Famille",exact:true}).click();
+ await page.emulateMedia({reducedMotion:"no-preference"});
+ assert.equal(await page.getByRole("region",{name:"Avatars de la famille"}).locator(".avatar-renderer").count(),5);
+ await page.waitForFunction(()=>document.querySelector('.avatar-family-scene .avatar-renderer')?.dataset.motion==='dance');
+ assert.equal(await page.locator('.avatar-family-scene .avatar-body').first().evaluate(el=>getComputedStyle(el).animationName),'avatar-dance');
+ await page.screenshot({path:out+"/avatar-family-music.png"});
+ await page.getByRole("button",{name:"Maison",exact:true}).click();
+ await page.getByRole("button",{name:"Activer Cuisine",exact:true}).click();
+ await page.getByRole("button",{name:"Quitter la scène"}).waitFor();
+ await page.screenshot({path:out+"/avatar-family-kitchen.png"});
+ await page.getByRole("button",{name:"Quitter la scène"}).click();
+ await page.emulateMedia({reducedMotion:"reduce"});
+ assert.equal(await page.locator('.avatar-family-scene .avatar-body').first().evaluate(el=>getComputedStyle(el).animationName),'none');
+ await page.clock.setSystemTime(new Date(2026,3,26,23,42));await page.clock.runFor(61000);
+ await page.waitForFunction(()=>document.querySelector('.avatar-family-scene .avatar-renderer')?.dataset.motion==='sleep');
+ await page.screenshot({path:out+"/avatar-family-night.png"});
  assert.deepEqual(errors,[],"browser errors");
  await context.close();
- await writeFile(out+"/report.json",JSON.stringify({screenshots:requireFs.readdirSync(out).filter(f=>f.endsWith(".png")).length,viewports:sizes,themes:2,periods:4,checks:["no document/card overflow","persist hidden widgets","restore layout","pause/resume/stop timer","calendar navigation","kitchen scene","settings navigation","device voice picker","morning/evening scenes","assistant orb","ambient mode","18 presets across 4 viewports","style/layout independence","5 layouts across 3 widths","3 densities","cancel layout draft","all supported widget sizes","full-width music","touch and keyboard reordering","immersive music, pause, empty fallback, Escape"],browserErrors:errors},null,2));
- console.log(process.env.HOMECAL_QA_FAST ? "PASS: updated layouts, touch drag, keyboard ordering, densities and Spotify artwork/immersive states." : "PASS: 18 styles, 5 layouts, 4 viewports, 32 theme/time combinations, touch drag, sizes, persistence, Spotify artwork/immersive states, scenes and ambient.");
+ await writeFile(out+"/report.json",JSON.stringify({screenshots:requireFs.readdirSync(out).filter(f=>f.endsWith(".png")).length,viewports:sizes,themes:2,periods:4,checks:["no document/card overflow","persist hidden widgets","restore layout","pause/resume/stop timer","calendar navigation","kitchen scene","settings navigation","device voice picker","morning/evening scenes","assistant orb","ambient mode","18 presets across 4 viewports","style/layout independence","5 layouts across 3 widths","3 densities","cancel layout draft","all supported widget sizes","full-width music","touch and keyboard reordering","immersive music, pause, empty fallback, Escape","6 avatar types across 4 viewports","9 representative pet breeds","avatar write failure and retry","avatar save/cancel/reset confirmation","profile and family calendar avatars","family music and kitchen context","avatar night and reduced motion","no invalid SVG paths"],browserErrors:errors},null,2));
+ console.log(process.env.HOMECAL_QA_FAST ? "PASS: layouts, Spotify, Avatar Studio, 6 types, pet breeds, save/cancel/reset, family/context animations." : "PASS: 18 styles, 5 layouts, 4 viewports, 32 theme/time combinations, Spotify, scenes/ambient, Avatar Studio, all types and family context.");
 } finally { await browser.close();server.close(); }

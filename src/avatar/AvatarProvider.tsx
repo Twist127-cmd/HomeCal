@@ -1,0 +1,38 @@
+"use client";
+import { createContext, useContext, useEffect, useMemo, type ReactNode } from "react";
+import { useApp } from "@/components/app/AppProvider";
+import { useMusic } from "@/components/music/MusicContext";
+import { useScenes } from "@/components/scenes/SceneContext";
+import { useNow } from "@/hooks/useNow";
+import { useNextDeparture } from "@/hooks/useNextDeparture";
+import { useDesign } from "@/theme/ThemeProvider";
+import { useLocalValue } from "@/theme/storage";
+import { expandEvents } from "@/lib/recurrence";
+import { addDays, startOfDay } from "@/lib/dates";
+import { avatarPeriod, avatarSeason, DEFAULT_AVATAR_CONTEXT, specialDate } from "./AvatarContextEngine";
+import type { AnimationLevel, AvatarContext } from "./types";
+const Context = createContext<{ context: AvatarContext; intensity: AnimationLevel; setIntensity(level: AnimationLevel): void }>({ context: DEFAULT_AVATAR_CONTEXT, intensity: "normal", setIntensity: () => {} });
+export const useAvatarContext = () => useContext(Context);
+export function AvatarProvider({ children }: { children: ReactNode }) {
+  useEffect(() => {
+    const sync = () => { document.documentElement.dataset.avatarPaused = String(document.visibilityState === "hidden"); };
+    sync(); document.addEventListener("visibilitychange", sync);
+    return () => { document.removeEventListener("visibilitychange", sync); delete document.documentElement.dataset.avatarPaused; };
+  }, []);
+  const { householdId, timers, events } = useApp();
+  const { preset } = useDesign(); const music = useMusic(); const { active } = useScenes();
+  const now = useNow(60_000); const { next, departure } = useNextDeparture(now);
+  const [stored, save] = useLocalValue("homecal.avatar-motion.v1." + (householdId ?? "guest"), "normal");
+  const intensity: AnimationLevel = stored === "reduced" || stored === "lively" ? stored : "normal";
+  const period = avatarPeriod(now.getHours()), season = avatarSeason(now.getMonth());
+  const holiday = specialDate(now);
+  const anniversary = expandEvents(events, startOfDay(now), addDays(startOfDay(now), 1)).some((o) => /anniversaire/i.test(o.event.title));
+  const departureSoon = !!departure?.travel && departure.travel.departAt.getTime() <= now.getTime() + 15 * 60_000 && departure.occ.start > now;
+  const eventSoon = !!next && next.start > now && next.start.getTime() - now.getTime() <= 15 * 60_000;
+  const cooking = timers.some((t) => t.status === "running" && /cuisine|cuisson|four|p[aâ]tes|riz|[oœ]e?ufs|g[aâ]teau/i.test(t.label));
+  const playing = music.connected && !!music.playback?.isPlaying;
+  const scene = active?.name ?? "";
+  const context = useMemo<AvatarContext>(() => ({ theme: preset.id, scene, dayPeriod: period, season, specialDate: anniversary ? "birthday" : holiday, musicPlaying: playing, cooking, departureSoon, eventSoon }), [preset.id, scene, period, season, anniversary, holiday, playing, cooking, departureSoon, eventSoon]);
+  const value = useMemo(() => ({ context, intensity, setIntensity: (level: AnimationLevel) => { save(level); } }), [context, intensity, save]);
+  return <Context.Provider value={value}>{children}</Context.Provider>;
+}

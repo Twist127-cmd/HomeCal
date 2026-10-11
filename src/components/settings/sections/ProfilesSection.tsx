@@ -8,8 +8,11 @@ import { deleteProfile, newId, saveProfile } from "@/lib/data/household";
 import { firestore } from "@/lib/firebase/client";
 import { PROFILE_COLORS, type Profile, type ProfileType } from "@/lib/types";
 import { Section } from "../shared";
+import dynamic from "next/dynamic";
+import { saveAvatarConfig } from "@/avatar/data";
+const AvatarStudio = dynamic(() => import("@/components/avatar/AvatarStudio").then((m) => m.AvatarStudio), { ssr: false });
 
-const TYPE_LABEL: Record<ProfileType, string> = { PERSON: "Personne", COUPLE: "Couple", GROUP: "Groupe", HOUSEHOLD: "Foyer" };
+const TYPE_LABEL: Record<ProfileType, string> = { PERSON: "Personne / animal", COUPLE: "Couple", GROUP: "Groupe", HOUSEHOLD: "Foyer" };
 
 export function ProfilesSection() {
   const { householdId, profiles } = useApp();
@@ -63,9 +66,11 @@ function ProfileEditor({ profile, onClose }: { profile: Profile; onClose(): void
   const { householdId, profiles, events } = useApp();
   const db = firestore();
   const [p, setP] = useState(profile);
+  const [studio, setStudio] = useState(false);
   const isNew = !profiles.some((x) => x.id === profile.id);
   const persons = profiles.filter((x) => x.type === "PERSON" && x.id !== p.id);
   const used = events.some((e) => e.profileIds.includes(p.id));
+  if (studio) return <AvatarStudio profile={p} draftOnly={isNew} onClose={() => setStudio(false)} onSave={async (avatarConfig) => { if (!isNew) await saveAvatarConfig(db, householdId!, p.id, avatarConfig); setP((value) => ({ ...value, avatarConfig })); }} />;
 
   return (
     <Sheet
@@ -104,6 +109,7 @@ function ProfileEditor({ profile, onClose }: { profile: Profile; onClose(): void
         <div className="flex justify-center">
           <Avatar profile={{ ...p, avatar: p.avatar || p.name.slice(0, 2).toUpperCase() }} size={72} />
         </div>
+        <Button className="w-full" onClick={() => setStudio(true)}>Avatar — ouvrir Avatar Studio</Button>
         <div className="grid grid-cols-[1fr_120px] gap-3">
           <Field label="Nom">
             <input className={inputClass} value={p.name} onChange={(e) => setP({ ...p, name: e.target.value })} autoFocus={isNew} />

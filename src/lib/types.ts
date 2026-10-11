@@ -10,6 +10,8 @@ export interface Profile {
   name: string;
   color: string;
   avatar: string; // emoji or initials
+  /** Optional, versioned Avatar Studio configuration; legacy initials remain available. */
+  avatarConfig?: import("@/avatar/types").AvatarConfig;
   type: ProfileType;
   /** For COUPLE / GROUP: ids of PERSON profiles. HOUSEHOLD implicitly includes every person. */
   memberIds: string[];

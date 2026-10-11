@@ -10,6 +10,7 @@ import { VoiceOverlay } from "@/components/voice/VoiceOverlay";
 import "./globals.css";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 import { MusicPresentation } from "@/components/music/MusicPresentation";
+import { AvatarProvider } from "@/avatar/AvatarProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -61,10 +62,12 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <MusicContextProvider>
               <MusicPresentation>
                 <SceneProvider>
-                  <VoiceProvider>
-                    {children}
-                    <VoiceOverlay />
-                  </VoiceProvider>
+                  <AvatarProvider>
+                    <VoiceProvider>
+                      {children}
+                      <VoiceOverlay />
+                    </VoiceProvider>
+                  </AvatarProvider>
                 </SceneProvider>
               </MusicPresentation>
             </MusicContextProvider>

@@ -19,6 +19,7 @@ import { useDesign } from "@/theme/ThemeProvider";
 import { useAlbumPalette } from "@/theme/useAlbumPalette";
 import { musicalTokens } from "@/theme/albumPalette";
 import { useEffectivePreset } from "@/theme/useEffectivePreset";
+import { AvatarFamilyScene } from "@/components/avatar/AvatarFamilyScene";
 
 /** Full-screen clock + next events, shown after inactivity (kiosk). Tap to leave. */
 export function AmbientScreen({ now, night, onWake }: { now: Date; night: boolean; onWake(): void }) {
@@ -65,6 +66,7 @@ export function AmbientScreen({ now, night, onWake }: { now: Date; night: boolea
           )}
           {homePlace && <p className="mt-3 text-sm text-muted">{homePlace.name}</p>}
           <AmbientExtras />
+          <AvatarFamilyScene profiles={profiles} ambient />
         </div>
 
         {!night && (
