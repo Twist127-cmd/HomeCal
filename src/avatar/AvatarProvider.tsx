@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useContext, useEffect, useMemo, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useApp } from "@/components/app/AppProvider";
 import { useMusic } from "@/components/music/MusicContext";
 import { useScenes } from "@/components/scenes/SceneContext";
@@ -11,9 +11,15 @@ import { expandEvents } from "@/lib/recurrence";
 import { addDays, startOfDay } from "@/lib/dates";
 import { avatarPeriod, avatarSeason, DEFAULT_AVATAR_CONTEXT, specialDate } from "./AvatarContextEngine";
 import type { AnimationLevel, AvatarContext } from "./types";
-const Context = createContext<{ context: AvatarContext; intensity: AnimationLevel; setIntensity(level: AnimationLevel): void; visible: boolean; setVisible(value: boolean): void; walking: boolean; setWalking(value: boolean): void }>({ context: DEFAULT_AVATAR_CONTEXT, intensity: "normal", setIntensity: () => {}, visible: true, setVisible: () => {}, walking: true, setWalking: () => {} });
+const Context = createContext<{ context: AvatarContext; intensity: AnimationLevel; setIntensity(level: AnimationLevel): void; visible: boolean; setVisible(value: boolean): void; walking: boolean; setWalking(value: boolean): void; celebration: number; celebrate(): void }>({ context: DEFAULT_AVATAR_CONTEXT, intensity: "normal", setIntensity: () => {}, visible: true, setVisible: () => {}, walking: true, setWalking: () => {}, celebration: 0, celebrate: () => {} });
 export const useAvatarContext = () => useContext(Context);
 export function AvatarProvider({ children }: { children: ReactNode }) {
+  const [celebration, setCelebration] = useState(0);
+  useEffect(() => {
+    if (!celebration) return;
+    const timeout = setTimeout(() => setCelebration(0), 900);
+    return () => clearTimeout(timeout);
+  }, [celebration]);
   useEffect(() => {
     const sync = () => { document.documentElement.dataset.avatarPaused = String(document.visibilityState === "hidden"); };
     sync(); document.addEventListener("visibilitychange", sync);
@@ -35,6 +41,6 @@ export function AvatarProvider({ children }: { children: ReactNode }) {
   const playing = music.connected && !!music.playback?.isPlaying;
   const scene = active?.name ?? "";
   const context = useMemo<AvatarContext>(() => ({ theme: preset.id, scene, dayPeriod: period, season, specialDate: anniversary ? "birthday" : holiday, musicPlaying: playing, cooking, departureSoon, eventSoon }), [preset.id, scene, period, season, anniversary, holiday, playing, cooking, departureSoon, eventSoon]);
-  const value = useMemo(() => ({ context, intensity, setIntensity: (level: AnimationLevel) => { save(level); }, visible: display !== "false", setVisible: (value: boolean) => { saveDisplay(String(value)); }, walking: walk !== "false", setWalking: (value: boolean) => { saveWalk(String(value)); } }), [context, intensity, save, display, saveDisplay, walk, saveWalk]);
+  const value = useMemo(() => ({ context, intensity, setIntensity: (level: AnimationLevel) => { save(level); }, visible: display !== "false", setVisible: (value: boolean) => { saveDisplay(String(value)); }, walking: walk !== "false", setWalking: (value: boolean) => { saveWalk(String(value)); }, celebration, celebrate: () => setCelebration(value => value + 1) }), [context, intensity, save, display, saveDisplay, walk, saveWalk, celebration]);
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }

@@ -3,6 +3,7 @@ const mocks = vi.hoisted(() => ({ update: vi.fn(), doc: vi.fn((...path: unknown[
 vi.mock("firebase/firestore", () => ({ updateDoc: mocks.update, doc: mocks.doc }));
 import { saveAvatarConfig } from "@/avatar/data";
 import { defaultAvatar } from "@/avatar/config";
+import { normalizeVoxelAvatar } from "@/avatar/dicebear/dicebearConfig";
 import type { Firestore } from "firebase/firestore";
 describe("avatar storage preserves profile data", () => {
   beforeEach(() => { mocks.update.mockReset(); mocks.doc.mockClear(); });
@@ -10,8 +11,9 @@ describe("avatar storage preserves profile data", () => {
     const db = {} as Firestore, config = defaultAvatar("cat");
     await saveAvatarConfig(db, "home", "milo", config);
     expect(mocks.doc).toHaveBeenCalledWith(db, "households", "home", "profiles", "milo");
-    expect(mocks.update).toHaveBeenCalledWith([db, "households", "home", "profiles", "milo"], { avatarConfig: config });
-    expect(Object.keys(mocks.update.mock.calls[0][1])).toEqual(["avatarConfig"]);
+    const migrated = normalizeVoxelAvatar(config, "milo");
+    expect(mocks.update).toHaveBeenCalledWith([db, "households", "home", "profiles", "milo"], { avatarConfig: migrated, avatarSeed: migrated.seed });
+    expect(Object.keys(mocks.update.mock.calls[0][1])).toEqual(["avatarConfig", "avatarSeed"]);
   });
   it("propagates write failures so the studio keeps the draft", async () => {
     mocks.update.mockRejectedValueOnce(new Error("offline"));

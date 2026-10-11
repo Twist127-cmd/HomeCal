@@ -314,7 +314,7 @@ button, a, input, select, textarea { transition-duration: 200ms; }
 @keyframes avatar-walk-limb { 0%, 100% { transform: rotate(-10deg); } 50% { transform: rotate(10deg) translateY(-2px); } }
 @media (max-width: 900px) { .avatar-greeting { --walk-duration: 32s; } }
 @media (max-width: 600px) { .avatar-greeting { --walk-duration: 24s; } .home-greeting-row .home-greeting { font-size: clamp(1.7rem, 6vw, 2.3rem); } }
-@media (prefers-reduced-motion: reduce) { .avatar-greeting * { animation: none !important; transform: none !important; } .avatar-greeting-front { opacity: 1 !important; } .avatar-greeting-profile { opacity: 0 !important; } }
+@media (prefers-reduced-motion: reduce) { .avatar-greeting * { animation: none !important; } .avatar-greeting-front { opacity: 1 !important; } .avatar-greeting-profile { opacity: 0 !important; } }
 .avatar-family-member { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; min-width: 0; max-width: 110px; padding-block: .25rem; }
 .avatar-family-member figcaption { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .7rem; color: var(--color-muted); }
 .avatar-family-member:has(.avatar-renderer[data-intensity="lively"]):nth-child(even) .avatar-head { animation-direction: reverse; }
@@ -352,4 +352,58 @@ button, a, input, select, textarea { transition-duration: 200ms; }
   .avatar-options { overflow: visible; flex-shrink: 0; }
   .avatar-family-scene { max-height: 132px; gap: .25rem .5rem; }
 }
-@media (prefers-reduced-motion: reduce) { .avatar-renderer *, .avatar-family-member { animation: none !important; transform: none !important; } }
+@media (prefers-reduced-motion: reduce) { .avatar-renderer *, .avatar-family-member { animation: none !important; } }
+
+/* DiceBear identity stays cached and static; HomeCal owns every animation. */
+@property --voxel-stride { syntax: "<number>"; inherits: true; initial-value: 0; }
+.voxel-avatar { border-radius: 1rem; background: var(--avatar-background); }
+.voxel-avatar::after { display: none; }
+.voxel-avatar .voxel-age { transform-box: view-box; transform-origin: 50% 100%; transform: scale(var(--voxel-scale, 1)); }
+.voxel-avatar .avatar-body { transform-origin: 64px 124px; }
+.voxel-avatar .avatar-head { transform-origin: 64px 82px; animation: voxel-look 31s ease-in-out infinite; animation-delay: var(--avatar-delay, 0s); }
+.voxel-avatar .avatar-leg { transform-box: fill-box; transform-origin: 50% 0; }
+.voxel-avatar[data-motion="dance"] .avatar-body { animation: voxel-dance 2.8s ease-in-out infinite; animation-delay: var(--avatar-delay, 0s); }
+.voxel-avatar[data-motion="dance"] .avatar-head { animation: voxel-dance-head 3.3s ease-in-out infinite; animation-delay: var(--avatar-delay, 0s); }
+.voxel-avatar[data-motion="attention"] .avatar-head { animation: avatar-attention 12s ease-in-out infinite; }
+.voxel-avatar[data-motion="sleep"] .avatar-head, .voxel-avatar[data-motion="sleep"] .avatar-body { animation: none; }
+.voxel-avatar[data-intensity="reduced"] .avatar-body { animation: none; }
+.voxel-avatar[data-intensity="reduced"] .avatar-head { animation: voxel-look 65s ease-in-out infinite; }
+.voxel-avatar[data-icon="true"] *, .avatar-option-grid .voxel-avatar * { animation: none !important; }
+.voxel-jump { transform-origin: 64px 124px; animation: voxel-jump .65s ease-out 1; }
+.avatar-greeting { --voxel-stride: 0; }
+.avatar-greeting-facing { animation: none; }
+.avatar-greeting[data-walking="true"] .avatar-greeting-walk { animation: voxel-walk var(--walk-duration) linear infinite; }
+.avatar-greeting[data-walking="true"] .avatar-greeting-facing { animation: voxel-turn var(--walk-duration) ease-in-out infinite; }
+.avatar-greeting[data-walking="true"] .avatar-body { animation: voxel-step .72s ease-in-out infinite; }
+.avatar-greeting[data-walking="true"][data-state="dance"] .avatar-body { animation: voxel-dance 2.8s ease-in-out infinite; }
+.avatar-greeting[data-walking="true"] .avatar-leg { animation: voxel-foot .72s ease-in-out infinite; }
+.avatar-greeting[data-walking="true"] .avatar-leg-right { animation-delay: -.36s; }
+.avatar-greeting[data-intensity="reduced"] .avatar-greeting-walk,
+.avatar-greeting[data-intensity="reduced"] .avatar-greeting-facing,
+.avatar-greeting[data-state="sleep"] .avatar-greeting-walk,
+.avatar-greeting[data-state="sleep"] .avatar-greeting-facing,
+.avatar-greeting[data-intensity="reduced"] .avatar-leg,
+.avatar-greeting[data-state="sleep"] .avatar-leg,
+.avatar-greeting[data-intensity="reduced"] .avatar-body,
+.avatar-greeting[data-state="sleep"] .avatar-body { animation: none; }
+.avatar-family-scene[data-walking="true"] .avatar-family-member:nth-child(odd):has([data-intensity="normal"][data-motion="idle"], [data-intensity="lively"][data-motion="idle"]) .voxel-avatar { animation: voxel-family-walk 48s ease-in-out infinite; animation-delay: var(--family-delay, 0s); }
+.avatar-family-member:nth-child(even) .voxel-avatar[data-motion="dance"] .avatar-body { animation-direction: reverse; animation-duration: 3.1s; }
+:root[data-avatar-paused="true"] .voxel-avatar, :root[data-avatar-paused="true"] .avatar-family-member * { animation-play-state: paused !important; }
+@keyframes voxel-walk {
+  0%, 5% { transform: translateX(0); --voxel-stride: 0; }
+  7% { transform: translateX(0); --voxel-stride: 1; }
+  31% { transform: translateX(100%); --voxel-stride: 1; }
+  33%, 46% { transform: translateX(100%); --voxel-stride: 0; }
+  48% { transform: translateX(100%); --voxel-stride: 1; }
+  75% { transform: translateX(0); --voxel-stride: 1; }
+  77%, 100% { transform: translateX(0); --voxel-stride: 0; }
+}
+@keyframes voxel-turn { 0%, 38% { transform: scaleX(1); } 41% { transform: scaleX(.7); } 44%, 84% { transform: scaleX(-1); } 88% { transform: scaleX(-.7); } 92%, 100% { transform: scaleX(1); } }
+@keyframes voxel-step { 0%, 50%, 100% { transform: translateY(0); } 25%, 75% { transform: translateY(calc(var(--voxel-stride) * -1.5px)); } }
+@keyframes voxel-foot { 0%, 100% { transform: rotate(calc(var(--voxel-stride) * -9deg)); } 50% { transform: rotate(calc(var(--voxel-stride) * 9deg)) translateY(calc(var(--voxel-stride) * -1px)); } }
+@keyframes voxel-look { 0%, 68%, 100% { transform: rotate(0); } 73%, 78% { transform: rotate(-1.5deg) translateX(-.5px); } 85%, 89% { transform: rotate(1deg) translateX(.5px); } }
+@keyframes voxel-dance { 0%, 100% { transform: translateY(0) rotate(-1.5deg); } 25% { transform: translate(-1px, -2px) rotate(0); } 50% { transform: rotate(1.5deg); } 75% { transform: translate(1px, -2px) rotate(0); } }
+@keyframes voxel-dance-head { 0%, 100% { transform: rotate(-1deg); } 50% { transform: rotate(1.5deg); } }
+@keyframes voxel-jump { 0%, 100% { transform: translateY(0) scale(1); } 15% { transform: scale(1.03, .96); } 45% { transform: translateY(-5px) scale(.98, 1.02); } 80% { transform: translateY(0) scale(1.02, .98); } }
+@keyframes voxel-family-walk { 0%, 8%, 76%, 100% { transform: translateX(0); } 28%, 49% { transform: translateX(12px); } 54% { transform: translateX(12px) scaleX(.8); } 69% { transform: translateX(0) scaleX(-1); } }
+@media (prefers-reduced-motion: reduce) { .voxel-avatar, .voxel-avatar *, .avatar-greeting * { animation: none !important; } }

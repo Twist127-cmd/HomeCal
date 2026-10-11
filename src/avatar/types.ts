@@ -1,5 +1,18 @@
 export type AvatarType = "adult" | "teen" | "child" | "baby" | "dog" | "cat";
 export type AnimationLevel = "reduced" | "normal" | "lively";
+export interface HomeCalAvatarConfig {
+  version: 2;
+  engine: "dicebear";
+  style: "voxel-art";
+  type: AvatarType;
+  seed: string;
+  options: import("./dicebear/dicebearConfig").VoxelOptions;
+  animationLevel: AnimationLevel;
+  seasonalAccessoriesEnabled: boolean;
+  contextualAccessoriesEnabled: boolean;
+  pet: { breed: string; color: string; eyeColor: string; accessory: "none" | "collar" | "bandana" | "bow" };
+}
+export type StoredAvatarConfig = AvatarConfig | HomeCalAvatarConfig;
 export interface AvatarConfig {
   version: 1; type: AvatarType;
   base: { skinTone: string; faceShape: string; bodyType: string };

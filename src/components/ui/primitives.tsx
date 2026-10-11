@@ -59,7 +59,7 @@ export function Chip({
 export function Avatar({ profile, size = 28, ring }: { profile?: Profile; size?: number; ring?: boolean }) {
   const { visible } = useAvatarContext();
   if (!profile) return null;
-  if (profile.avatarConfig && visible) return <span title={profile.name} className={clsx("inline-flex shrink-0 rounded-full", ring && "ring-2 ring-surface")}><AvatarRenderer config={profile.avatarConfig} size={size} /></span>;
+  if (profile.type === "PERSON" && visible) return <span title={profile.name} className={clsx("inline-flex shrink-0 rounded-full", ring && "ring-2 ring-surface")}><AvatarRenderer config={profile.avatarConfig} profileId={profile.id} avatarSeed={profile.avatarSeed} size={size} /></span>;
   const isEmoji = /\p{Extended_Pictographic}/u.test(profile.avatar);
   return (
     <span

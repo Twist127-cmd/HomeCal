@@ -10,6 +10,7 @@ import { PROFILE_COLORS, type Profile, type ProfileType } from "@/lib/types";
 import { Section } from "../shared";
 import dynamic from "next/dynamic";
 import { saveAvatarConfig } from "@/avatar/data";
+import { useAvatarContext } from "@/avatar/AvatarProvider";
 const AvatarStudio = dynamic(() => import("@/components/avatar/AvatarStudio").then((m) => m.AvatarStudio), { ssr: false });
 
 const TYPE_LABEL: Record<ProfileType, string> = { PERSON: "Personne / animal", COUPLE: "Couple", GROUP: "Groupe", HOUSEHOLD: "Foyer" };
@@ -63,6 +64,7 @@ export function ProfilesSection() {
 }
 
 function ProfileEditor({ profile, onClose }: { profile: Profile; onClose(): void }) {
+  const { celebrate } = useAvatarContext();
   const { householdId, profiles, events } = useApp();
   const db = firestore();
   const [p, setP] = useState(profile);
@@ -70,7 +72,7 @@ function ProfileEditor({ profile, onClose }: { profile: Profile; onClose(): void
   const isNew = !profiles.some((x) => x.id === profile.id);
   const persons = profiles.filter((x) => x.type === "PERSON" && x.id !== p.id);
   const used = events.some((e) => e.profileIds.includes(p.id));
-  if (studio) return <AvatarStudio profile={p} draftOnly={isNew} onClose={() => setStudio(false)} onSave={async (avatarConfig) => { if (!isNew) await saveAvatarConfig(db, householdId!, p.id, avatarConfig); setP((value) => ({ ...value, avatarConfig })); }} />;
+  if (studio) return <AvatarStudio profile={p} draftOnly={isNew} onClose={() => setStudio(false)} onSave={async (avatarConfig) => { if (!isNew) { await saveAvatarConfig(db, householdId!, p.id, avatarConfig); celebrate(); } setP((value) => ({ ...value, avatarConfig, avatarSeed: avatarConfig.seed })); }} />;
 
   return (
     <Sheet

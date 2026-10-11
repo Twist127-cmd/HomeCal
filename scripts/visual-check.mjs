@@ -112,129 +112,18 @@ const mono=nextCss.match(/--font-geist-mono:([^;}]+)/)?.[1] || "ui-monospace";
 await writeFile(out+"/style.css", nextCss+"\n:root{--font-geist-sans:"+sans+";--font-geist-mono:"+mono+";}");
 await writeFile(out+"/index.html",'<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"></head><body><div id="root"></div><script src="/app.js"></script></body></html>');
 const server=createServer(async(req,res)=>{
- try{const url=new URL(req.url,"http://localhost");const file=url.pathname==="/app.js"||url.pathname==="/style.css"?out+url.pathname:url.pathname.startsWith("/media/")?resolve(".next/static",url.pathname.slice(1)):url.pathname.startsWith("/_next/static/")?resolve(".next/static",url.pathname.slice(14)):url.pathname.startsWith("/ambience/")?resolve("public",url.pathname.slice(1)):out+"/index.html";res.setHeader("Content-Type",file.endsWith(".js")?"application/javascript; charset=utf-8":file.endsWith(".css")?"text/css; charset=utf-8":file.endsWith(".svg")?"image/svg+xml":file.endsWith(".woff2")?"font/woff2":"text/html; charset=utf-8");res.end(await readFile(file))}catch{res.statusCode=404;res.end()}
+ try{const url=new URL(req.url,"http://localhost");const file=url.pathname==="/app.js"||url.pathname==="/style.css"?out+url.pathname:url.pathname.startsWith("/media/")?resolve(".next/static",url.pathname.slice(1)):url.pathname.startsWith("/_next/static/")?resolve(".next/static",url.pathname.slice(14)):url.pathname.startsWith("/ambience/")||url.pathname.startsWith("/avatars/")?resolve("public",url.pathname.slice(1)):out+"/index.html";res.setHeader("Content-Type",file.endsWith(".js")?"application/javascript; charset=utf-8":file.endsWith(".css")?"text/css; charset=utf-8":file.endsWith(".svg")?"image/svg+xml":file.endsWith(".woff2")?"font/woff2":"text/html; charset=utf-8");res.end(await readFile(file))}catch{res.statusCode=404;res.end()}
 });
 await new Promise(r=>server.listen(4173,"127.0.0.1",r));
 const browser=await chromium.launch({headless:true});
 const sizes=[{name:"phone",width:390,height:844},{name:"tablet-portrait",width:820,height:1180},{name:"tablet-landscape",width:1200,height:800},{name:"desktop",width:1440,height:900}];
 const errors=[];
-if (process.env.HOMECAL_QA_GREETING) {
-  const page = await browser.newPage();
-  page.on("pageerror", error => errors.push(error.message));
-  page.on("console", message => { if (message.type() === "error" && /<path>|<svg>|attribute d:/.test(message.text())) errors.push(message.text()); });
-  await page.clock.install({ time: new Date(2026, 9, 11, 14, 30) });
-  await page.goto("http://127.0.0.1:4173");
-  const walker = page.locator(".avatar-greeting-walk");
-  await walker.waitFor();
-  await page.locator('.avatar-greeting[data-walking="true"]').waitFor();
-  const liveStart = await walker.evaluate(el => el.getBoundingClientRect().x);
-  await new Promise(resolve => setTimeout(resolve, 5000));
-  const liveMoved = await walker.evaluate(el => el.getBoundingClientRect().x);
-  assert.ok(liveMoved > liveStart + 3, "real-time walking with Spotify playing");
-  await page.evaluate(() => {
-    localStorage.setItem("homecal.avatar-motion.v1.fixture", "reduced");
-    window.dispatchEvent(new CustomEvent("homecal:customization"));
-  });
-  await page.locator('.avatar-greeting[data-intensity="reduced"][data-walking="true"]').waitFor();
-  assert.notEqual(await walker.evaluate(el => getComputedStyle(el).animationName), "none", "walking independent of animation intensity");
-  await page.clock.setSystemTime(new Date(2026, 9, 11, 23, 30));
-  await page.clock.runFor(61_000);
-  await page.locator('.avatar-greeting [data-motion="sleep"]').first().waitFor();
-  assert.notEqual(await walker.evaluate(el => getComputedStyle(el).animationName), "none", "walking independent of night context");
-  await page.clock.setSystemTime(new Date(2026, 9, 11, 14, 30));
-  await page.clock.runFor(61_000);
-  await page.evaluate(() => {
-    localStorage.setItem("homecal.avatar-motion.v1.fixture", "normal");
-    window.dispatchEvent(new CustomEvent("homecal:customization"));
-  });
-  await page.evaluate(() => { window.fixtureMusic.playback.isPlaying = false; window.fixtureEmit(); });
-  await page.waitForFunction(() => document.querySelector(".avatar-greeting-walk")?.getAnimations().length > 0);
-  for (const size of sizes) {
-    await page.setViewportSize(size);
-    const initial = await walker.evaluate(el => {
-      const animation = el.getAnimations()[0];
-      animation.pause(); animation.currentTime = 0;
-      return el.getBoundingClientRect().x;
-    });
-    const moved = await walker.evaluate(el => {
-      const animation = el.getAnimations()[0];
-      animation.currentTime = Number(animation.effect.getTiming().duration) * .46;
-      return el.getBoundingClientRect().x;
-    });
-    const laneWidth = await page.locator(".avatar-greeting").evaluate(el => el.clientWidth);
-    assert.ok(Math.abs(moved - initial - (laneWidth - 84)) < 2, "avatar traverses full banner: " + size.name);
-    await page.locator(".avatar-greeting").evaluate(el => {
-      for (const animation of el.getAnimations({ subtree: true })) {
-        animation.pause();
-        animation.currentTime = Number(animation.effect.getTiming().duration) * .3;
-      }
-    });
-    assert.equal(await page.locator(".avatar-greeting-profile").evaluate(el => getComputedStyle(el).opacity), "1", "side view while walking");
-    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, "greeting overflow: " + size.name);
-    await page.screenshot({ path: out + "/greeting-" + size.name + ".png" });
-  }
-  await page.locator(".avatar-greeting").evaluate(el => {
-    for (const animation of el.getAnimations({ subtree: true })) {
-      animation.currentTime = Number(animation.effect.getTiming().duration) * .5;
-    }
-  });
-  assert.equal(await page.locator(".avatar-greeting-front").evaluate(el => getComputedStyle(el).opacity), "1", "front view during quarter turn");
-  await page.screenshot({ path: out + "/greeting-quarter-turn.png" });
-  const leg = page.locator(".avatar-greeting-profile .avatar-leg-left").first();
-  const strides = await leg.evaluate(el => {
-    const animation = el.getAnimations()[0]; animation.currentTime = 0;
-    const first = getComputedStyle(el).transform;
-    animation.currentTime = 360;
-    return [first, getComputedStyle(el).transform];
-  });
-  assert.notEqual(strides[0], strides[1], "feet alternate steps");
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  assert.equal(await walker.evaluate(el => getComputedStyle(el).animationName), "none");
-  await page.emulateMedia({ reducedMotion: "no-preference" });
-  await page.evaluate(() => window.fixtureFamily());
-  for (const type of ["adult", "teen", "child", "baby", "dog", "cat"]) {
-    await page.evaluate(type => {
-      const member = window.fixtureApp.profiles.find(p => p.avatarConfig.type === (type === "teen" ? "adult" : type));
-      window.fixtureApp.profiles = [{ ...member, id: "emma", name: "Emma", avatarConfig: { ...member.avatarConfig, type } }];
-      window.fixtureEmit();
-    }, type);
-    // Restore the family fixture between types, and inspect the actual side drawing.
-    await page.waitForFunction(type => document.querySelector(".avatar-greeting-profile .avatar-renderer")?.dataset.type === type, type);
-    await page.locator(".avatar-greeting").evaluate(el => {
-      for (const animation of el.getAnimations({ subtree: true })) { animation.pause(); animation.currentTime = Number(animation.effect.getTiming().duration) * .3; }
-    });
-    await page.screenshot({ path: out + "/avatar-walking-profile-" + type + ".png" });
-    await page.evaluate(() => window.fixtureFamily());
-  }
-  await page.goto("http://127.0.0.1:4173/settings#apparence");
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.getByRole("status").filter({ hasText: "La promenade est arrêtée" }).waitFor();
-  await page.emulateMedia({ reducedMotion: "no-preference" });
-  await page.getByRole("status").filter({ hasText: "La promenade est arrêtée" }).waitFor({ state: "detached" });
-  await page.getByRole("checkbox", { name: "Activer la promenade dans le bandeau", exact: true }).uncheck();
-  await page.goto("http://127.0.0.1:4173");
-  await page.locator('.avatar-greeting[data-walking="false"]').waitFor();
-  assert.equal(await walker.evaluate(el => getComputedStyle(el).animationName), "none", "walking toggle persists");
-  await page.goto("http://127.0.0.1:4173/settings#apparence");
-  await page.getByRole("checkbox", { name: "Afficher les avatars", exact: true }).uncheck();
-  await page.goto("http://127.0.0.1:4173");
-  await page.getByRole("heading", { level: 1 }).waitFor();
-  assert.equal(await page.locator(".avatar-greeting, .avatar-family-scene, .avatar-renderer").count(), 0, "hidden avatars persist after navigation");
-  await page.goto("http://127.0.0.1:4173/settings#apparence");
-  await page.getByRole("checkbox", { name: "Afficher les avatars", exact: true }).check();
-  await page.getByRole("checkbox", { name: "Activer la promenade dans le bandeau", exact: true }).check();
-  await page.screenshot({ path: out + "/avatar-display-options.png", fullPage: true });
-  await page.goto("http://127.0.0.1:4173");
-  await walker.waitFor();
-  await page.evaluate(() => { window.fixtureApp.profiles = window.fixtureApp.profiles.map(p => ({ ...p, avatarConfig: undefined })); window.fixtureEmit(); });
-  await page.locator('.avatar-greeting[aria-label="Avatar de Emma"] svg').first().waitFor();
-  await page.evaluate(() => { window.fixtureApp.profiles = []; window.fixtureEmit(); });
-  await page.locator('.avatar-greeting[aria-label="Avatar HomeCal"] svg').first().waitFor();
-  assert.deepEqual(errors, []);
-  await browser.close(); server.close();
-  console.log("PASS: real-time walking with Spotify, reduced intensity and night; full-width walk, side views, 4 viewports, settings persistence, system reduced-motion explanation and fallback avatars.");
+if (process.env.HOMECAL_QA_GREETING || process.env.HOMECAL_QA_VOXEL) {
+  const { checkVoxelAvatars } = await import("./avatar-voxel-check.mjs");
+  try { await checkVoxelAvatars({ browser, sizes, out, errors }); } finally { await browser.close(); server.close(); }
   process.exit(0);
 }
+
 try {
  for(const size of (process.env.HOMECAL_QA_FAST ? [] : sizes))for(const theme of ["light","dark"])for(const [period,hour] of [["morning",8],["day",14],["evening",20],["night",1]]) {
   const context=await browser.newContext({viewport:{width:size.width,height:size.height},colorScheme:theme,reducedMotion:"reduce"});
@@ -287,7 +176,7 @@ try {
  await page.screenshot({path:out+"/kitchen.png"});
  await page.getByRole("button",{name:"Quitter la scène"}).click();
  await page.getByRole("link",{name:"Réglages",exact:true}).click();
- await page.getByRole("button",{name:"Affichage",exact:true}).click();
+ await page.getByRole("button",{name:"Affichage",exact:true}).filter({visible:true}).first().click();
  await page.screenshot({path:out+"/settings.png"});
  await page.getByRole("button",{name:"Voix et notifications",exact:true}).click();
  await page.getByRole("button",{name:"Tester la voix",exact:true}).waitFor();
@@ -431,7 +320,7 @@ try {
  await page.emulateMedia({reducedMotion:"no-preference"});
  assert.equal(await page.getByRole("region",{name:"Avatars de la famille"}).locator(".avatar-renderer").count(),5);
  await page.waitForFunction(()=>document.querySelector('.avatar-family-scene .avatar-renderer')?.dataset.motion==='dance');
- assert.equal(await page.locator('.avatar-family-scene .avatar-body').first().evaluate(el=>getComputedStyle(el).animationName),'avatar-dance');
+ assert.equal(await page.locator('.avatar-family-scene .avatar-body').first().evaluate(el=>getComputedStyle(el).animationName),'voxel-dance');
  await page.screenshot({path:out+"/avatar-family-music.png"});
  await page.getByRole("button",{name:"Maison",exact:true}).click();
  await page.getByRole("button",{name:"Activer Cuisine",exact:true}).click();
@@ -445,6 +334,8 @@ try {
  await page.screenshot({path:out+"/avatar-family-night.png"});
  assert.deepEqual(errors,[],"browser errors");
  await context.close();
+ const { checkVoxelAvatars } = await import("./avatar-voxel-check.mjs");
+ await checkVoxelAvatars({ browser, sizes, out, errors });
  await writeFile(out+"/report.json",JSON.stringify({screenshots:requireFs.readdirSync(out).filter(f=>f.endsWith(".png")).length,viewports:sizes,themes:2,periods:4,checks:["no document/card overflow","persist hidden widgets","restore layout","pause/resume/stop timer","calendar navigation","kitchen scene","settings navigation","device voice picker","morning/evening scenes","assistant orb","ambient mode","18 presets across 4 viewports","style/layout independence","5 layouts across 3 widths","3 densities","cancel layout draft","all supported widget sizes","full-width music","touch and keyboard reordering","immersive music, pause, empty fallback, Escape","6 avatar types across 4 viewports","9 representative pet breeds","avatar write failure and retry","avatar save/cancel/reset confirmation","profile and family calendar avatars","family music and kitchen context","avatar night and reduced motion","no invalid SVG paths"],browserErrors:errors},null,2));
  console.log(process.env.HOMECAL_QA_FAST ? "PASS: layouts, Spotify, Avatar Studio, 6 types, pet breeds, save/cancel/reset, family/context animations." : "PASS: 18 styles, 5 layouts, 4 viewports, 32 theme/time combinations, Spotify, scenes/ambient, Avatar Studio, all types and family context.");
 } finally { await browser.close();server.close(); }
