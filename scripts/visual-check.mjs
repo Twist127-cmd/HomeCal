@@ -144,9 +144,13 @@ if (process.env.HOMECAL_QA_GREETING) {
   }
   await page.emulateMedia({ reducedMotion: "reduce" });
   assert.equal(await walker.evaluate(el => getComputedStyle(el).animationName), "none");
+  await page.evaluate(() => { window.fixtureApp.profiles = window.fixtureApp.profiles.map(p => ({ ...p, avatarConfig: undefined })); window.fixtureEmit(); });
+  await page.locator('.avatar-greeting[aria-label="Avatar de Emma"] svg').waitFor();
+  await page.evaluate(() => { window.fixtureApp.profiles = []; window.fixtureEmit(); });
+  await page.locator('.avatar-greeting[aria-label="Avatar HomeCal"] svg').waitFor();
   assert.deepEqual(errors, []);
   await browser.close(); server.close();
-  console.log("PASS: greeting avatar walks across 4 viewports; reduced motion disables walking.");
+  console.log("PASS: greeting avatar walks across 4 viewports; reduced motion and unconfigured/empty profiles verified.");
   process.exit(0);
 }
 try {
