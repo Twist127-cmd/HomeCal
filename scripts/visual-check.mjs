@@ -126,6 +126,27 @@ if (process.env.HOMECAL_QA_GREETING) {
   await page.goto("http://127.0.0.1:4173");
   const walker = page.locator(".avatar-greeting-walk");
   await walker.waitFor();
+  await page.locator('.avatar-greeting[data-walking="true"]').waitFor();
+  const liveStart = await walker.evaluate(el => el.getBoundingClientRect().x);
+  await new Promise(resolve => setTimeout(resolve, 5000));
+  const liveMoved = await walker.evaluate(el => el.getBoundingClientRect().x);
+  assert.ok(liveMoved > liveStart + 3, "real-time walking with Spotify playing");
+  await page.evaluate(() => {
+    localStorage.setItem("homecal.avatar-motion.v1.fixture", "reduced");
+    window.dispatchEvent(new CustomEvent("homecal:customization"));
+  });
+  await page.locator('.avatar-greeting[data-intensity="reduced"][data-walking="true"]').waitFor();
+  assert.notEqual(await walker.evaluate(el => getComputedStyle(el).animationName), "none", "walking independent of animation intensity");
+  await page.clock.setSystemTime(new Date(2026, 9, 11, 23, 30));
+  await page.clock.runFor(61_000);
+  await page.locator('.avatar-greeting [data-motion="sleep"]').first().waitFor();
+  assert.notEqual(await walker.evaluate(el => getComputedStyle(el).animationName), "none", "walking independent of night context");
+  await page.clock.setSystemTime(new Date(2026, 9, 11, 14, 30));
+  await page.clock.runFor(61_000);
+  await page.evaluate(() => {
+    localStorage.setItem("homecal.avatar-motion.v1.fixture", "normal");
+    window.dispatchEvent(new CustomEvent("homecal:customization"));
+  });
   await page.evaluate(() => { window.fixtureMusic.playback.isPlaying = false; window.fixtureEmit(); });
   await page.waitForFunction(() => document.querySelector(".avatar-greeting-walk")?.getAnimations().length > 0);
   for (const size of sizes) {
@@ -186,6 +207,10 @@ if (process.env.HOMECAL_QA_GREETING) {
     await page.evaluate(() => window.fixtureFamily());
   }
   await page.goto("http://127.0.0.1:4173/settings#apparence");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.getByRole("status").filter({ hasText: "La promenade est arrêtée" }).waitFor();
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.getByRole("status").filter({ hasText: "La promenade est arrêtée" }).waitFor({ state: "detached" });
   await page.getByRole("checkbox", { name: "Activer la promenade dans le bandeau", exact: true }).uncheck();
   await page.goto("http://127.0.0.1:4173");
   await page.locator('.avatar-greeting[data-walking="false"]').waitFor();
@@ -207,7 +232,7 @@ if (process.env.HOMECAL_QA_GREETING) {
   await page.locator('.avatar-greeting[aria-label="Avatar HomeCal"] svg').first().waitFor();
   assert.deepEqual(errors, []);
   await browser.close(); server.close();
-  console.log("PASS: full-width walk, side view, quarter turn, alternating steps, 4 viewports, visibility/walking settings persistence, reduced motion and fallback avatars.");
+  console.log("PASS: real-time walking with Spotify, reduced intensity and night; full-width walk, side views, 4 viewports, settings persistence, system reduced-motion explanation and fallback avatars.");
   process.exit(0);
 }
 try {

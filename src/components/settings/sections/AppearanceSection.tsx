@@ -1,5 +1,5 @@
 "use client";
-import { useState, type ReactNode } from "react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { Button, Chip } from "@/components/ui/primitives";
 import { PresetGallery } from "@/components/customization/PresetGallery";
 import { LayoutEditor } from "@/components/customization/LayoutEditor";
@@ -9,7 +9,16 @@ import { useDesign, type Density, type MusicAdaptation } from "@/theme/ThemeProv
 import { Section } from "../shared";
 import { useAvatarContext } from "@/avatar/AvatarProvider";
 import type { AnimationLevel } from "@/avatar/types";
+const reducedMotionQuery = "(prefers-reduced-motion: reduce)";
+function subscribeReducedMotion(callback: () => void) {
+  const media = window.matchMedia(reducedMotionQuery);
+  media.addEventListener("change", callback);
+  return () => media.removeEventListener("change", callback);
+}
+const readReducedMotion = () => window.matchMedia(reducedMotionQuery).matches;
+const serverReducedMotion = () => false;
 export function AppearanceSection() {
+  const systemReducedMotion = useSyncExternalStore(subscribeReducedMotion, readReducedMotion, serverReducedMotion);
   const { preferences, update, reset } = useDesign();
   const { intensity, setIntensity, visible, setVisible, walking, setWalking } = useAvatarContext();
   const { layout, apply, reset: resetLayout } = useWidgetLayout();
@@ -22,9 +31,10 @@ export function AppearanceSection() {
     <Group label="Densité" hint="Sur cet appareil. Les commandes tactiles restent faciles à atteindre."><div className="flex flex-wrap gap-2">{([["compact", "Compact"], ["normal", "Normal"], ["comfort", "Confort"]] as [Density, string][]).map(([id, name]) => <Chip key={id} active={preferences.density === id} aria-pressed={preferences.density === id} onClick={() => update({ density: id })}>{name}</Chip>)}</div></Group>
     <Group label="Adaptation Spotify"><div className="flex flex-wrap gap-2">{([["off", "Désactivée"], ["subtle", "Subtile"], ["normal", "Normale"], ["immersive", "Immersive"]] as [MusicAdaptation, string][]).map(([id, name]) => <Chip key={id} active={preferences.musicAdaptation === id} aria-pressed={preferences.musicAdaptation === id} onClick={() => update({ musicAdaptation: id })}>{name}</Chip>)}</div></Group>
     <Button variant="primary" onClick={() => setEditing(true)}>Personnaliser l’accueil</Button>
-    <Group label="Affichage des avatars" hint="Sur cet appareil. Les profils restent identifiables par leurs initiales lorsque les avatars sont masqués.">
+    <Group label="Affichage des avatars" hint="La promenade est indépendante de la musique, de l’heure et du niveau d’animation. La réduction des mouvements du système reste prioritaire. Options mémorisées sur cet appareil.">
       <label className="flex min-h-11 items-center gap-3"><input type="checkbox" className="h-5 w-5 accent-accent" checked={visible} onChange={e => setVisible(e.target.checked)} />Afficher les avatars</label>
       <label className="flex min-h-11 items-center gap-3"><input type="checkbox" className="h-5 w-5 accent-accent" checked={walking} onChange={e => setWalking(e.target.checked)} />Activer la promenade dans le bandeau</label>
+      {systemReducedMotion && visible && walking && <p className="mt-2 text-sm text-muted" role="status">La promenade est arrêtée par la réduction des mouvements de cet appareil. Désactive ce réglage dans les paramètres d’accessibilité de l’appareil pour voir le déplacement.</p>}
     </Group>
     <Group label="Animations avatars" hint="Sur cet appareil. Le réglage système de réduction des mouvements reste prioritaire."><div className="flex flex-wrap gap-2">{([["reduced", "Réduit"], ["normal", "Normal"], ["lively", "Vivant"]] as [AnimationLevel, string][]).map(([id, name]) => <Chip key={id} active={intensity === id} aria-pressed={intensity === id} onClick={() => setIntensity(id)}>{name}</Chip>)}</div></Group>
     <p className="text-xs text-muted">Style et disposition sont mémorisés pour ce foyer sur cet appareil. Les fonctions restent accessibles dans les menus, même avec un widget masqué.</p>
