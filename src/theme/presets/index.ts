@@ -7,6 +7,7 @@ const make = (id: string, name: string, category: DesignPreset["category"], back
   ...options,
 });
 export const DESIGN_PRESETS: DesignPreset[] = [
+  make("spotify", "Spotify", "classic", "#121918", "#202b26", "#9bc6aa", "#17251f", { dark: true, blur: 16, glass: .93, artworkInfluence: 1 }),
   make("sober", "Sobre", "classic", "#f0f1f2", "#ffffff", "#454b52", "#a4aeb8", { blur: 0, radius: .9, motion: { duration: 120 } }),
   make("warm", "Warm", "classic", "#f4eee5", "#fffaf3", "#89581f", "#b68a72", { ambient: { landscape: true } }),
   make("night", "Nuit", "classic", "#10151a", "#1b232b", "#c2aa87", "#6d8199", { dark: true, blur: 2, glass: .98 }),
@@ -26,4 +27,4 @@ export const DESIGN_PRESETS: DesignPreset[] = [
   make("forest", "Forest", "extravagant", "#15271f", "#23382d", "#b3cf9e", "#b6a084", { dark: true, ambient: { landscape: true }, artworkInfluence: .18 }),
   make("ice", "Ice", "extravagant", "#e8f4f7", "#f7fdff", "#3a7285", "#b0c7e2", { blur: 14, glass: .9, radius: 1.35 }),
 ];
-export const designPreset = (id: string) => DESIGN_PRESETS.find((p) => p.id === id) ?? DESIGN_PRESETS[1];
+export const designPreset = (id: string) => DESIGN_PRESETS.find((p) => p.id === id) ?? DESIGN_PRESETS.find((p) => p.id === "warm")!;

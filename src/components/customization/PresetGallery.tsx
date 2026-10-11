@@ -20,6 +20,7 @@ export function PresetGallery() {
           <span className="flex min-h-11 items-center justify-between gap-2 px-3 text-sm font-medium">{p.name}{preferences.preset === p.id && <Check size={16} aria-label="Appliqué" />}</span>
         </button>;
       })}</div></fieldset>)}
+    {preset.id === "spotify" && <p className="text-sm text-muted">Le fond de toutes les pages suit les couleurs et la pochette du morceau Spotify, comme en mode immersif. Sans morceau, il garde une ambiance sombre et verte.</p>}
     {preview && <div className="preset-preview-actions glass-panel" role="status"><span className="min-w-0 flex-1 text-sm">Aperçu : <strong>{preset.name}</strong></span><Button onClick={() => previewPreset(null)}>Annuler</Button><Button variant="primary" onClick={() => applyPreset(preview)}>Appliquer</Button></div>}
   </div>;
 }

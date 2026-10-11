@@ -118,6 +118,42 @@ await new Promise(r=>server.listen(4173,"127.0.0.1",r));
 const browser=await chromium.launch({headless:true});
 const sizes=[{name:"phone",width:390,height:844},{name:"tablet-portrait",width:820,height:1180},{name:"tablet-landscape",width:1200,height:800},{name:"desktop",width:1440,height:900}];
 const errors=[];
+if (process.env.HOMECAL_QA_SPOTIFY_PRESET) {
+  const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
+  page.on("pageerror", e => errors.push(e.message));
+  try {
+    await page.goto("http://127.0.0.1:4173/settings#apparence");
+    await page.getByRole("button", { name: "Aperçu Spotify", exact: true }).click();
+    await page.getByRole("button", { name: "Appliquer", exact: true }).click();
+    await page.waitForFunction(() => document.documentElement.dataset.design === "spotify" && document.documentElement.style.getPropertyValue("--spotify-artwork").includes("data:image"));
+    const initial = await page.evaluate(() => document.documentElement.style.getPropertyValue("--color-bg"));
+    for (const size of sizes) {
+      await page.setViewportSize({ width: size.width, height: size.height });
+      await page.screenshot({ path: out + "/spotify-preset-settings-" + size.name + ".png", fullPage: true });
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    }
+    await page.goto("http://127.0.0.1:4173");
+    await page.waitForFunction(() => document.documentElement.dataset.design === "spotify");
+    assert.match(await page.locator(".home-shell").evaluate(el => getComputedStyle(el, "::after").backgroundImage), /data:image/);
+    await page.screenshot({ path: out + "/spotify-preset-home.png", fullPage: true });
+    await page.getByRole("button", { name: "Calendrier", exact: true }).first().click();
+    await page.screenshot({ path: out + "/spotify-preset-calendar.png", fullPage: true });
+    await page.evaluate(() => { window.fixtureMusic.playback = { ...window.fixtureMusic.playback, isPlaying: false, item: { ...window.fixtureMusic.playback.item, image: 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="#ee2222"/></svg>') } }; window.fixtureEmit(); });
+    await page.waitForFunction(before => document.documentElement.style.getPropertyValue("--color-bg") !== before, initial);
+    await page.evaluate(() => { window.fixtureMusic.playback = null; window.fixtureEmit(); });
+    await page.waitForFunction(() => document.documentElement.style.getPropertyValue("--spotify-artwork") === "none");
+    await page.goto("http://127.0.0.1:4173/settings#apparence");
+    await page.getByRole("button", { name: "Aperçu Warm", exact: true }).click();
+    await page.getByRole("button", { name: "Annuler", exact: true }).click();
+    await page.waitForFunction(() => document.documentElement.dataset.design === "spotify");
+    await page.getByRole("button", { name: "Aperçu Warm", exact: true }).click();
+    await page.getByRole("button", { name: "Appliquer", exact: true }).click();
+    await page.waitForFunction(() => document.documentElement.dataset.design === "warm");
+    assert.deepEqual(errors, []);
+    console.log("PASS: Spotify preset, persistence, artwork and palette changes, pause, empty fallback, preview cancellation, four viewports.");
+  } finally { await browser.close(); server.close(); }
+  process.exit(0);
+}
 if (process.env.HOMECAL_QA_GREETING || process.env.HOMECAL_QA_VOXEL) {
   const { checkVoxelAvatars } = await import("./avatar-voxel-check.mjs");
   try { await checkVoxelAvatars({ browser, sizes, out, errors }); } finally { await browser.close(); server.close(); }

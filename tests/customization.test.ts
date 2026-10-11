@@ -5,8 +5,8 @@ import { extractPalette, FALLBACK_PALETTE, musicalTokens } from "@/theme/albumPa
 import { LAYOUT_PRESETS, layoutPreset } from "@/layout/presets";
 import { DEFAULT_HOME_LAYOUT, parseHomeLayout, WIDGET_REGISTRY } from "@/layout/widgetRegistry";
 describe("independent styles and layouts", () => {
-  it("provides all 18 unique visual presets and 5 complete layouts", () => {
-    expect(DESIGN_PRESETS).toHaveLength(18); expect(new Set(DESIGN_PRESETS.map((p) => p.id)).size).toBe(18);
+  it("provides all 19 unique visual presets and 5 complete layouts", () => {
+    expect(DESIGN_PRESETS).toHaveLength(19); expect(new Set(DESIGN_PRESETS.map((p) => p.id)).size).toBe(19);
     expect(LAYOUT_PRESETS).toHaveLength(5);
     for (const p of LAYOUT_PRESETS) {
       const widgets = layoutPreset(p.id);
